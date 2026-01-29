@@ -168,7 +168,6 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, collection, addDoc, updateDoc, doc, onSnapshot, deleteDoc, query } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // --- PASTE YOUR API KEY HERE ---
         const firebaseConfig = {
             apiKey: "AIzaSyAOEmUqFvb0RbyjnMb8wJBP-QOU5LgEiS8", 
             authDomain: "slr-tracker.firebaseapp.com",
@@ -186,8 +185,7 @@
         const AREAS = ["TAGAYTAY", "AMADEO", "MENDEZ", "BAILEN", "MARAGONDON", "ALFONSO", "MAGALLANES", "INDANG"];
         let teams = JSON.parse(localStorage.getItem('slrTeams')) || ["Team Bernie", "Team Randy"]; 
         let currentTab = 'active';
-        
-        // --- NEW: PAGINATION VARIABLES ---
+        // ------
         let renderLimit = 50; 
         
         function isDuplicate(nameToCheck, excludeId = null) {
