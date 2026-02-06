@@ -1,0 +1,16 @@
+/* GLOBAL STYLES */
+body { font-family: 'Inter', sans-serif; }
+
+/* NAVIGATION */
+.nav-item { color: #9CA3AF; border-bottom: 3px solid transparent; transition: all 0.3s; cursor: pointer; }
+.nav-active { color: #2563EB; border-bottom: 3px solid #2563EB; font-weight: bold; cursor: pointer; }
+
+/* ANIMATIONS */
+.fade-in { animation: fadeIn 0.3s ease-in-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+/* UTILITIES */
+.sticky-date { position: sticky; top: 0; z-index: 10; background: rgba(241, 245, 249, 0.95); backdrop-filter: blur(4px); }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.clickable-card:active { transform: scale(0.98); }
+.blur-bg { backdrop-filter: blur(5px); }
