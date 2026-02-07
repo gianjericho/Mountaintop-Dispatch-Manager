@@ -1,5 +1,5 @@
 // ============================================
-// 1. SETTINGS & CONFIG
+// 1. SETTINGS & AUTO-DEBUG
 // ============================================
 const DEBUG_MODE = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.protocol === "file:");
 function log(msg, data = null) { if (!DEBUG_MODE) return; const time = new Date().toLocaleTimeString(); if (data) console.log(`[${time}] 🔧 ${msg}`, data); else console.log(`[${time}] 🔧 ${msg}`); }
@@ -20,22 +20,78 @@ let renderLimit = 50;
 let db = null; 
 
 // ============================================
-// 3. CORE FUNCTIONS (Defined FIRST to prevent errors)
+// 3. UTILITIES (DEFINED FIRST TO PREVENT CRASHES)
 // ============================================
+function parseDateInput(input) { 
+    if (!input) return null;
+    const parts = input.split('-'); 
+    return new Date(parts[0], parts[1] - 1, parts[2]); 
+}
 
-// --- A. Mode Switcher ---
+function isSameDay(d1, d2) { 
+    if(!d1 || !d2) return false; 
+    const date1 = new Date(d1); 
+    const date2 = new Date(d2); 
+    return date1.getFullYear() === date2.getFullYear() && 
+           date1.getMonth() === date2.getMonth() && 
+           date1.getDate() === date2.getDate(); 
+}
+
+function renderMiniCard(t,d,tot) {
+    const isSLR = currentAppMode === 'SLR';
+    const color = isSLR ? 'green' : 'indigo';
+    const p = tot===0?0:Math.round((d/tot)*100);
+    const c = p===100?`text-${color}-600`:(p>50?`text-${color}-600`:'text-orange-500');
+    return `<div onclick="openTeamAnalytics('${t}')" class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 cursor-pointer clickable-card hover:border-${color}-300 transition select-none dark-element dark-border">
+        <div class="flex justify-between items-center mb-1">
+            <h4 class="text-xs font-bold text-gray-500 uppercase truncate w-24 dark-text">${t}</h4>
+            <span class="${c} font-bold text-sm">${p}%</span>
+        </div>
+        <div class="w-full bg-gray-100 rounded-full h-1.5 mb-1 dark-bg-sub">
+            <div class="bg-slate-800 h-1.5 rounded-full" style="width: ${p}%"></div>
+        </div>
+        <p class="text-xs text-gray-400 text-right dark-text">${d}/${tot}</p>
+    </div>`;
+}
+
+function renderAreaRow(t,d,tot) {
+    const isSLR = currentAppMode === 'SLR';
+    const color = isSLR ? 'green' : 'indigo';
+    const p = tot===0?0:Math.round((d/tot)*100);
+    return `<div class="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-100 dark-element dark-border">
+        <span class="text-xs font-bold text-gray-700 w-1/3 dark-text">${t}</span>
+        <div class="w-1/3 px-2">
+            <div class="w-full bg-gray-100 rounded-full h-2 dark-bg-sub">
+                <div class="bg-${color}-600 h-2 rounded-full" style="width: ${p}%"></div>
+            </div>
+        </div>
+        <div class="w-1/3 text-right">
+            <span class="text-xs font-bold text-gray-600 dark-text">${p}%</span>
+            <span class="text-[10px] text-gray-400 ml-1">(${d}/${tot})</span>
+        </div>
+    </div>`;
+}
+
+function buildOptions(set, selectedVal) {
+    let html = `<option value="" disabled ${!selectedVal ? 'selected' : ''}>-- Select --</option>`;
+    [...set].sort().forEach(val => { html += `<option value="${val}" ${selectedVal === val ? 'selected' : ''}>${val}</option>`; });
+    html += `<option value="NEW_ENTRY" class="font-bold text-blue-600 bg-blue-50">+ ADD NEW...</option>`;
+    return html;
+}
+
+// ============================================
+// 4. CORE UI FUNCTIONS
+// ============================================
 window.switchAppMode = (mode) => {
     currentAppMode = mode;
     const isSLR = mode === 'SLR';
     
-    // 1. Update Buttons
     const btnSLR = document.getElementById('mode-slr');
     const btnSLI = document.getElementById('mode-sli');
     
     if(btnSLR) btnSLR.className = isSLR ? "bg-white shadow text-green-700 px-4 py-1 rounded-md text-xs font-bold transition" : "px-4 py-1 rounded-md text-xs font-bold transition text-gray-400 hover:text-gray-600";
     if(btnSLI) btnSLI.className = !isSLR ? "bg-white shadow text-indigo-700 px-4 py-1 rounded-md text-xs font-bold transition" : "px-4 py-1 rounded-md text-xs font-bold transition text-gray-400 hover:text-gray-600";
 
-    // 2. Update Theme Colors
     const primaryColor = isSLR ? 'bg-green-600' : 'bg-indigo-600';
     const hoverColor = isSLR ? 'hover:bg-green-700' : 'hover:bg-indigo-700';
     const shadowColor = isSLR ? 'shadow-green-200' : 'shadow-indigo-200';
@@ -48,10 +104,7 @@ window.switchAppMode = (mode) => {
         'btn-add-team': `${primaryColor} text-white px-3 py-2 rounded-lg font-bold text-xs ${hoverColor} transition`
     };
 
-    for (const [id, cls] of Object.entries(els)) {
-        const el = document.getElementById(id);
-        if(el) el.className = cls;
-    }
+    for (const [id, cls] of Object.entries(els)) { const el = document.getElementById(id); if(el) el.className = cls; }
     
     const perfCard = document.getElementById('perf-card');
     if(perfCard) perfCard.className = `${perfBg} text-white rounded-2xl p-5 shadow-xl relative overflow-hidden transition-colors duration-500`;
@@ -60,18 +113,17 @@ window.switchAppMode = (mode) => {
     if(modalHeader) modalHeader.className = `${perfBg} p-6 text-white shrink-0 transition-colors duration-500`;
 
     const icon = document.getElementById('filter-icon');
-    if(icon) icon.className = `fa-solid fa-filter mr-2 ${isSLR ? 'text-green-500' : 'text-indigo-500'}`;
+    if(icon) icon.className = `fa-solid fa-magnifying-glass mr-2 ${isSLR ? 'text-green-500' : 'text-indigo-500'}`;
 
     const title = document.getElementById('app-title');
     if(title) {
         title.innerText = `${mode} Dispatch`;
-        title.className = `text-lg font-extrabold tracking-tight ${isSLR ? 'text-slate-800' : 'text-indigo-900'}`;
+        title.className = `text-lg font-extrabold tracking-tight dark-text ${isSLR ? 'text-slate-800' : 'text-indigo-900'}`;
     }
 
     render(true);
 }
 
-// --- B. Tab Switcher ---
 window.switchTab = (tab) => {
     currentTab = tab; renderLimit = 50;
     ['active', 'history', 'performance'].forEach(t => {
@@ -93,20 +145,21 @@ window.switchTab = (tab) => {
     render(true);
 };
 
-// --- C. Utils ---
 window.clearAllFilters = () => { 
     document.getElementById('global-date-filter').value = ''; 
     document.getElementById('global-team-filter').value = ''; 
     document.getElementById('global-area-filter').value = ''; 
+    document.getElementById('global-search').value = ''; 
     render(true); 
 }
 
 window.logout = () => { localStorage.removeItem('slrLoggedIn'); location.reload(); };
+
 window.toggleSettings = () => { 
     toggleModal('settings-modal'); 
     document.getElementById('team-list-settings').innerHTML = [...DYNAMIC_TEAMS].sort().map(t => `
-        <div class="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-200">
-            <span class="text-sm font-medium text-gray-700">${t}</span>
+        <div class="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-200 dark-bg-sub dark-border">
+            <span class="text-sm font-medium text-gray-700 dark-text">${t}</span>
             <div class="flex gap-2">
                 <button onclick="renameTeam('${t}')" class="text-blue-400 hover:text-blue-600"><i class="fa-solid fa-pen"></i></button>
                 <button onclick="deleteTeam('${t}')" class="text-red-400 hover:text-red-600"><i class="fa-solid fa-trash-can"></i></button>
@@ -123,25 +176,47 @@ window.addNewTeam = () => {
     }
 }
 
+window.toggleTheme = () => {
+    document.body.classList.toggle('dark-mode');
+    const isDark = document.body.classList.contains('dark-mode');
+    localStorage.setItem('slrTheme', isDark ? 'dark' : 'light');
+}
+if(localStorage.getItem('slrTheme') === 'dark') document.body.classList.add('dark-mode');
+
+window.exportCSV = () => {
+    const dataToExport = soData.filter(i => (i.type || 'SLR') === currentAppMode);
+    if(dataToExport.length === 0) return console.warn("No data to export.");
+    let csvContent = "data:text/csv;charset=utf-8,ID,Name,Team,Area,Status,Date Added,Date Done,Type,Remarks\n";
+    dataToExport.forEach(row => {
+        const safeName = (row.name || "").replace(/,/g, " ");
+        const safeRem = (row.remarks || "").replace(/,/g, " ");
+        let csvRow = `${row.id},${safeName},${row.team},${row.area},${row.status},${row.dateAdded},${row.dateDone || ""},${row.type || "SLR"},${safeRem}`;
+        csvContent += csvRow + "\n";
+    });
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Dispatch_Export_${currentAppMode}_${new Date().toLocaleDateString()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+}
+
 // ============================================
-// 4. INIT LOGIC (Runs after functions exist)
+// 5. INIT LOGIC
 // ============================================
 try {
     if (!window.supabase) console.error("Supabase SDK not loaded.");
     else { db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); log("Supabase Client Initialized"); }
 } catch (err) { console.error("Init Error:", err); }
 
-// Check Login
 if(localStorage.getItem('slrLoggedIn') === 'true') { showApp(); }
 
 function showApp() { 
     document.getElementById('login-screen').classList.add('hidden'); 
     document.getElementById('main-app').classList.remove('hidden'); 
-    
-    // Safely initialize
     if (db) startSupabaseListener(); 
-    // Now switchAppMode exists, so we can call it safely
-    setTimeout(() => window.switchAppMode('SLR'), 100); 
+    // Safely init mode
+    setTimeout(() => { if(window.switchAppMode) window.switchAppMode('SLR'); }, 100); 
 }
 
 async function startSupabaseListener() {
@@ -149,11 +224,9 @@ async function startSupabaseListener() {
         const { data, error } = await db.from('service_orders').select('*');
         if(error) throw error;
         soData = data || [];
-        
         extractDynamicOptions();
-        
         document.getElementById('loading-screen').classList.add('hidden');
-        window.switchTab('active'); // Safe call
+        window.switchTab('active');
 
         db.channel('custom-all-channel')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'service_orders' }, (payload) => {
@@ -193,7 +266,7 @@ function populateFilterDropdown(id, set, label) {
 }
 
 // ============================================
-// 5. CRUD ACTIONS
+// 6. CRUD ACTIONS
 // ============================================
 window.attemptLogin = () => { const u = document.getElementById('login-user').value.trim(); const p = document.getElementById('login-pass').value.trim(); if(u === "mountaintop" && p === "mountaintopadmin") { localStorage.setItem('slrLoggedIn', 'true'); showApp(); } else { document.getElementById('login-error').classList.remove('hidden'); } };
 
@@ -304,7 +377,7 @@ window.saveBulkSO = async () => {
 }
 
 // ============================================
-// 6. RENDER LOGIC
+// 7. RENDER LOGIC
 // ============================================
 function render(resetLimit = false) {
     if(resetLimit) renderLimit = 50;
@@ -312,33 +385,30 @@ function render(resetLimit = false) {
     const dateInput = document.getElementById('global-date-filter').value;
     const teamFilter = document.getElementById('global-team-filter').value;
     const areaFilter = document.getElementById('global-area-filter').value;
+    const searchInput = document.getElementById('global-search').value.toLowerCase();
     const perfFilter = document.getElementById('perf-filter').value;
     let selectedDate = dateInput ? parseDateInput(dateInput) : null;
 
-    const hasFilters = selectedDate || teamFilter || areaFilter;
+    const hasFilters = selectedDate || teamFilter || areaFilter || searchInput;
     const resetBtn = document.getElementById('clear-filters-btn');
-    if(resetBtn) {
-        if(hasFilters) resetBtn.classList.remove('hidden');
-        else resetBtn.classList.add('hidden');
-    }
+    if(resetBtn) resetBtn.className = hasFilters ? "text-[10px] bg-red-100 hover:bg-red-200 text-red-600 px-3 py-1 rounded-full font-bold transition" : "hidden";
 
-    const presetContainer = document.getElementById('perf-preset-container');
-    if(presetContainer) {
-        if(selectedDate) presetContainer.classList.add('hidden');
-        else presetContainer.classList.remove('hidden');
-    }
+    if(selectedDate || searchInput) document.getElementById('perf-preset-container').classList.add('hidden');
+    else document.getElementById('perf-preset-container').classList.remove('hidden');
 
     let filtered = soData.filter(item => {
         const itemType = item.type || 'SLR'; 
         if(itemType !== currentAppMode) return false;
 
+        if(searchInput && !item.name.toLowerCase().includes(searchInput)) return false;
         if(teamFilter && item.team !== teamFilter) return false;
         if(areaFilter && item.area !== areaFilter) return false;
+        
         if(selectedDate) {
             const itemDate = item.status === 'active' ? item.dateAdded : item.dateDone;
             return isSameDay(itemDate, selectedDate);
         }
-        if(currentTab === 'performance' && !selectedDate) {
+        if(currentTab === 'performance' && !selectedDate && !searchInput) {
             const now = new Date();
             const d = new Date(item.dateAdded); 
             if(perfFilter === 'all') return true;
@@ -358,20 +428,13 @@ function render(resetLimit = false) {
 function renderList(items) {
     const container = document.getElementById('card-container');
     if(!container) return;
-    
-    const countEl = document.getElementById('list-count');
-    if(countEl) countEl.innerText = items.length;
-    
-    const msgEl = document.getElementById('empty-msg');
-    if(msgEl) msgEl.className = items.length === 0 ? "text-center py-16 text-gray-400" : "hidden";
+    document.getElementById('list-count').innerText = items.length;
+    document.getElementById('empty-msg').className = items.length === 0 ? "text-center py-16 text-gray-400" : "hidden";
     
     const groups = {};
-    items.forEach(item => {
-        const dateKey = currentTab === 'active' ? item.dateAdded : (item.dateDone || "Unknown"); 
-        if(!groups[dateKey]) groups[dateKey] = [];
-        groups[dateKey].push(item);
-    });
+    items.forEach(item => { const dateKey = currentTab === 'active' ? item.dateAdded : (item.dateDone || "Unknown"); if(!groups[dateKey]) groups[dateKey] = []; groups[dateKey].push(item); });
     const sortedDates = Object.keys(groups).sort((a,b) => new Date(b) - new Date(a));
+    
     let html = '';
     let count = 0;
     for(const date of sortedDates) {
@@ -385,10 +448,7 @@ function renderList(items) {
     }
     container.innerHTML = html;
     const btn = document.getElementById('show-more-btn');
-    if(btn) {
-        if(items.length > renderLimit) { btn.classList.remove('hidden'); btn.innerText = `Show More (${items.length - renderLimit} remaining)`; } 
-        else { btn.classList.add('hidden'); }
-    }
+    if(btn) { if(items.length > renderLimit) { btn.classList.remove('hidden'); btn.innerText = `Show More (${items.length - renderLimit} remaining)`; } else { btn.classList.add('hidden'); } }
 }
 
 function createCardHTML(item) {
@@ -397,29 +457,26 @@ function createCardHTML(item) {
     const color = isSLR ? 'green' : 'indigo'; 
     const border = isSLR ? 'border-green-500' : 'border-indigo-500';
     const check = (val) => val ? 'checked' : '';
-    const actionBtn = isDone 
-        ? `<span class="text-xs font-bold text-${color}-600"><i class="fa-solid fa-check-double mr-1"></i>Completed</span>` 
-        : `<button onclick="markDone('${item.id}')" class="bg-${color}-600 hover:bg-${color}-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow uppercase tracking-wide transition flex items-center"><i class="fa-solid fa-check mr-1"></i> Done</button>`;
+    const actionBtn = isDone ? `<span class="text-xs font-bold text-${color}-600"><i class="fa-solid fa-check-double mr-1"></i>Completed</span>` : `<button onclick="markDone('${item.id}')" class="bg-${color}-600 hover:bg-${color}-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow uppercase tracking-wide transition flex items-center"><i class="fa-solid fa-check mr-1"></i> Done</button>`;
     
     return `
-    <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 ${item.team && item.team.toLowerCase().includes('bernie') ? 'border-orange-400' : border} fade-in mb-3">
+    <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 ${item.team && item.team.toLowerCase().includes('bernie') ? 'border-orange-400' : border} fade-in mb-3 dark-element">
         <div class="flex justify-between items-start mb-2">
-            <div><span class="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded mb-1 inline-block border border-slate-200">${item.area}</span><h3 class="font-bold text-gray-800 text-lg leading-tight">${item.name}</h3><p class="text-xs text-gray-500 font-bold mt-0.5 uppercase tracking-wide">${item.team}</p></div>
+            <div><span class="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded mb-1 inline-block border border-slate-200 dark-bg-sub dark-text dark-border">${item.area}</span><h3 class="font-bold text-gray-800 text-lg leading-tight dark-text">${item.name}</h3><p class="text-xs text-gray-500 font-bold mt-0.5 uppercase tracking-wide dark-text">${item.team}</p></div>
             <div class="flex gap-1"><button onclick="openModal('${item.id}')" class="text-gray-300 hover:text-${color}-600 p-1"><i class="fa-solid fa-pen"></i></button><button onclick="deleteSO('${item.id}')" class="text-gray-300 hover:text-red-500 p-1"><i class="fa-solid fa-trash"></i></button></div>
         </div>
-        <div class="grid grid-cols-2 gap-2 mb-3 text-sm text-gray-600 bg-gray-50 p-2 rounded-lg">
+        <div class="grid grid-cols-2 gap-2 mb-3 text-sm text-gray-600 bg-gray-50 p-2 rounded-lg dark-bg-sub dark-text">
             <label class="flex items-center space-x-2"><input type="checkbox" ${check(item.pic)} onclick="toggleCheck('${item.id}', 'pic')" ${isDone ? 'disabled' : ''} class="accent-${color}-600"><span>Trouble Pic</span></label>
             <label class="flex items-center space-x-2"><input type="checkbox" ${check(item.pwr)} onclick="toggleCheck('${item.id}', 'pwr')" ${isDone ? 'disabled' : ''} class="accent-${color}-600"><span>Optical Pwr</span></label>
             <label class="flex items-center space-x-2"><input type="checkbox" ${check(item.speed)} onclick="toggleCheck('${item.id}', 'speed')" ${isDone ? 'disabled' : ''} class="accent-${color}-600"><span>Speedtest</span></label>
             <label class="flex items-center space-x-2"><input type="checkbox" ${check(item.rpt)} onclick="toggleCheck('${item.id}', 'rpt')" ${isDone ? 'disabled' : ''} class="accent-${color}-600"><span>Service Rpt</span></label>
         </div>
-        <div class="flex items-center justify-between gap-3"><input type="text" id="rem-${item.id}" value="${item.remarks || ''}" ${isDone ? 'readonly' : ''} placeholder="Remarks..." class="flex-1 bg-white text-sm px-3 py-2 rounded border border-gray-200 focus:outline-none focus:border-${color}-500">${actionBtn}</div>
+        <div class="flex items-center justify-between gap-3"><input type="text" id="rem-${item.id}" value="${item.remarks || ''}" ${isDone ? 'readonly' : ''} placeholder="Remarks..." class="flex-1 bg-white text-sm px-3 py-2 rounded border border-gray-200 focus:outline-none focus:border-${color}-500 dark-input">${actionBtn}</div>
     </div>`;
 }
 
 function renderPerformance(data) {
     const stats = { total: data.length, done: 0, teams: {}, areas: {} };
-    
     data.forEach(item => {
         if(!stats.teams[item.team]) stats.teams[item.team] = { total: 0, done: 0 };
         if(!stats.areas[item.area]) stats.areas[item.area] = { total: 0, done: 0 };
@@ -438,19 +495,6 @@ function renderPerformance(data) {
     document.getElementById('area-stats-container').innerHTML = Object.entries(stats.areas).map(([n,d]) => renderAreaRow(n,d.done,d.total)).join('');
 }
 
-// ============================================
-// 7. UTILITIES
-// ============================================
-function parseDateInput(input) { const parts = input.split('-'); return new Date(parts[0], parts[1] - 1, parts[2]); }
-function isSameDay(d1, d2) { if(!d1 || !d2) return false; const date1 = new Date(d1); const date2 = new Date(d2); return date1.getFullYear() === date2.getFullYear() && date1.getMonth() === date2.getMonth() && date1.getDate() === date2.getDate(); }
-
-function buildOptions(set, selectedVal) {
-    let html = `<option value="" disabled ${!selectedVal ? 'selected' : ''}>-- Select --</option>`;
-    [...set].sort().forEach(val => { html += `<option value="${val}" ${selectedVal === val ? 'selected' : ''}>${val}</option>`; });
-    html += `<option value="NEW_ENTRY" class="font-bold text-blue-600 bg-blue-50">+ ADD NEW...</option>`;
-    return html;
-}
-
 window.handleDropdownChange = (type) => {
     const val = document.getElementById(`input-${type}`).value;
     const customInput = document.getElementById(`input-${type}-custom`);
@@ -460,12 +504,12 @@ window.handleDropdownChange = (type) => {
 window.openModal = (editId = null) => { 
     const teamContainer = document.getElementById('input-team').parentNode;
     if(!document.getElementById('input-team-custom')) {
-        teamContainer.innerHTML += `<input type="text" id="input-team-custom" placeholder="Enter New Team Name" class="hidden w-full border border-blue-300 bg-blue-50 rounded-lg p-2.5 mt-2 outline-none fade-in">`;
+        teamContainer.innerHTML += `<input type="text" id="input-team-custom" placeholder="Enter New Team Name" class="hidden w-full border border-blue-300 bg-blue-50 rounded-lg p-2.5 mt-2 outline-none fade-in dark-input">`;
         document.getElementById('input-team').setAttribute('onchange', "handleDropdownChange('team')");
     }
     const areaContainer = document.getElementById('input-area').parentNode;
     if(!document.getElementById('input-area-custom')) {
-        areaContainer.innerHTML += `<input type="text" id="input-area-custom" placeholder="Enter New Area Name" class="hidden w-full border border-blue-300 bg-blue-50 rounded-lg p-2.5 mt-2 outline-none fade-in">`;
+        areaContainer.innerHTML += `<input type="text" id="input-area-custom" placeholder="Enter New Area Name" class="hidden w-full border border-blue-300 bg-blue-50 rounded-lg p-2.5 mt-2 outline-none fade-in dark-input">`;
         document.getElementById('input-area').setAttribute('onchange', "handleDropdownChange('area')");
     }
     document.getElementById('input-team-custom').classList.add('hidden'); document.getElementById('input-team-custom').value = '';
@@ -503,6 +547,3 @@ window.openTeamAnalytics = (teamName) => {
 
 window.clearDateFilter = () => { document.getElementById('global-date-filter').value = ''; render(true); }
 window.showMore = () => { renderLimit += 50; render(false); }
-
-function renderMiniCard(t,d,tot) { const isSLR = currentAppMode === 'SLR'; const color = isSLR ? 'green' : 'indigo'; const p = tot===0?0:Math.round((d/tot)*100); const c = p===100?`text-${color}-600`:(p>50?`text-${color}-600`:'text-orange-500'); return `<div onclick="openTeamAnalytics('${t}')" class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 cursor-pointer clickable-card hover:border-${color}-300 transition select-none"><div class="flex justify-between items-center mb-1"><h4 class="text-xs font-bold text-gray-500 uppercase truncate w-24">${t}</h4><span class="${c} font-bold text-sm">${p}%</span></div><div class="w-full bg-gray-100 rounded-full h-1.5 mb-1"><div class="bg-slate-800 h-1.5 rounded-full" style="width: ${p}%"></div></div><p class="text-xs text-gray-400 text-right">${d}/${tot}</p></div>`; }
-function renderAreaRow(t,d,tot) { const isSLR = currentAppMode === 'SLR'; const color = isSLR ? 'green' : 'indigo'; const p = tot===0?0:Math.round((d/tot)*100); return `<div class="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-100"><span class="text-xs font-bold text-gray-700 w-1/3">${t}</span><div class="w-1/3 px-2"><div class="w-full bg-gray-100 rounded-full h-2"><div class="bg-${color}-600 h-2 rounded-full" style="width: ${p}%"></div></div></div><div class="w-1/3 text-right"><span class="text-xs font-bold text-gray-600">${p}%</span><span class="text-[10px] text-gray-400 ml-1">(${d}/${tot})</span></div></div>`; }
