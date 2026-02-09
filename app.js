@@ -15,172 +15,61 @@ let DYNAMIC_TEAMS = new Set(["Team Bernie", "Team Randy"]);
 let DYNAMIC_AREAS = new Set(["TAGAYTAY", "AMADEO", "MENDEZ", "BAILEN", "MARAGONDON", "ALFONSO", "MAGALLANES", "INDANG"]);
 
 let currentTab = 'active';
-let currentAppMode = 'SLR'; // 'SLR' or 'SLI'
+let currentAppMode = 'SLR'; 
 let renderLimit = 50;
 let db = null; 
 
 // ============================================
-// 3. UTILITIES (DEFINED FIRST TO PREVENT CRASHES)
+// 3. UTILITIES & HELPERS
 // ============================================
-function parseDateInput(input) { 
-    if (!input) return null;
-    const parts = input.split('-'); 
-    return new Date(parts[0], parts[1] - 1, parts[2]); 
-}
-
-function isSameDay(d1, d2) { 
-    if(!d1 || !d2) return false; 
-    const date1 = new Date(d1); 
-    const date2 = new Date(d2); 
-    return date1.getFullYear() === date2.getFullYear() && 
-           date1.getMonth() === date2.getMonth() && 
-           date1.getDate() === date2.getDate(); 
-}
+function parseDateInput(input) { if (!input) return null; const parts = input.split('-'); return new Date(parts[0], parts[1] - 1, parts[2]); }
+function isSameDay(d1, d2) { if(!d1 || !d2) return false; const date1 = new Date(d1); const date2 = new Date(d2); return date1.getFullYear() === date2.getFullYear() && date1.getMonth() === date2.getMonth() && date1.getDate() === date2.getDate(); }
 
 function renderMiniCard(t,d,tot) {
-    const isSLR = currentAppMode === 'SLR';
-    const color = isSLR ? 'green' : 'indigo';
-    const p = tot===0?0:Math.round((d/tot)*100);
-    const c = p===100?`text-${color}-600`:(p>50?`text-${color}-600`:'text-orange-500');
-    return `<div onclick="openTeamAnalytics('${t}')" class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 cursor-pointer clickable-card hover:border-${color}-300 transition select-none dark-element dark-border">
-        <div class="flex justify-between items-center mb-1">
-            <h4 class="text-xs font-bold text-gray-500 uppercase truncate w-24 dark-text">${t}</h4>
-            <span class="${c} font-bold text-sm">${p}%</span>
-        </div>
-        <div class="w-full bg-gray-100 rounded-full h-1.5 mb-1 dark-bg-sub">
-            <div class="bg-slate-800 h-1.5 rounded-full" style="width: ${p}%"></div>
-        </div>
-        <p class="text-xs text-gray-400 text-right dark-text">${d}/${tot}</p>
-    </div>`;
+    const isSLR = currentAppMode === 'SLR'; const color = isSLR ? 'green' : 'indigo'; const p = tot===0?0:Math.round((d/tot)*100); const c = p===100?`text-${color}-600`:(p>50?`text-${color}-600`:'text-orange-500');
+    return `<div onclick="openTeamAnalytics('${t}')" class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 cursor-pointer clickable-card hover:border-${color}-300 transition select-none dark-element dark-border"><div class="flex justify-between items-center mb-1"><h4 class="text-xs font-bold text-gray-500 uppercase truncate w-24 dark-text">${t}</h4><span class="${c} font-bold text-sm">${p}%</span></div><div class="w-full bg-gray-100 rounded-full h-1.5 mb-1 dark-bg-sub"><div class="bg-slate-800 h-1.5 rounded-full" style="width: ${p}%"></div></div><p class="text-xs text-gray-400 text-right dark-text">${d}/${tot}</p></div>`;
 }
-
 function renderAreaRow(t,d,tot) {
-    const isSLR = currentAppMode === 'SLR';
-    const color = isSLR ? 'green' : 'indigo';
-    const p = tot===0?0:Math.round((d/tot)*100);
-    return `<div class="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-100 dark-element dark-border">
-        <span class="text-xs font-bold text-gray-700 w-1/3 dark-text">${t}</span>
-        <div class="w-1/3 px-2">
-            <div class="w-full bg-gray-100 rounded-full h-2 dark-bg-sub">
-                <div class="bg-${color}-600 h-2 rounded-full" style="width: ${p}%"></div>
-            </div>
-        </div>
-        <div class="w-1/3 text-right">
-            <span class="text-xs font-bold text-gray-600 dark-text">${p}%</span>
-            <span class="text-[10px] text-gray-400 ml-1">(${d}/${tot})</span>
-        </div>
-    </div>`;
+    const isSLR = currentAppMode === 'SLR'; const color = isSLR ? 'green' : 'indigo'; const p = tot===0?0:Math.round((d/tot)*100);
+    return `<div class="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-100 dark-element dark-border"><span class="text-xs font-bold text-gray-700 w-1/3 dark-text">${t}</span><div class="w-1/3 px-2"><div class="w-full bg-gray-100 rounded-full h-2 dark-bg-sub"><div class="bg-${color}-600 h-2 rounded-full" style="width: ${p}%"></div></div></div><div class="w-1/3 text-right"><span class="text-xs font-bold text-gray-600 dark-text">${p}%</span><span class="text-[10px] text-gray-400 ml-1">(${d}/${tot})</span></div></div>`;
 }
-
 function buildOptions(set, selectedVal) {
-    let html = `<option value="" disabled ${!selectedVal ? 'selected' : ''}>-- Select --</option>`;
-    [...set].sort().forEach(val => { html += `<option value="${val}" ${selectedVal === val ? 'selected' : ''}>${val}</option>`; });
-    html += `<option value="NEW_ENTRY" class="font-bold text-blue-600 bg-blue-50">+ ADD NEW...</option>`;
-    return html;
+    let html = `<option value="" disabled ${!selectedVal ? 'selected' : ''}>-- Select --</option>`; [...set].sort().forEach(val => { html += `<option value="${val}" ${selectedVal === val ? 'selected' : ''}>${val}</option>`; }); html += `<option value="NEW_ENTRY" class="font-bold text-blue-600 bg-blue-50">+ ADD NEW...</option>`; return html;
 }
 
 // ============================================
-// 4. CORE UI FUNCTIONS
+// 4. CORE FUNCTIONS
 // ============================================
 window.switchAppMode = (mode) => {
     currentAppMode = mode;
     const isSLR = mode === 'SLR';
-    
-    const btnSLR = document.getElementById('mode-slr');
-    const btnSLI = document.getElementById('mode-sli');
-    
+    const btnSLR = document.getElementById('mode-slr'); const btnSLI = document.getElementById('mode-sli');
     if(btnSLR) btnSLR.className = isSLR ? "bg-white shadow text-green-700 px-4 py-1 rounded-md text-xs font-bold transition" : "px-4 py-1 rounded-md text-xs font-bold transition text-gray-400 hover:text-gray-600";
     if(btnSLI) btnSLI.className = !isSLR ? "bg-white shadow text-indigo-700 px-4 py-1 rounded-md text-xs font-bold transition" : "px-4 py-1 rounded-md text-xs font-bold transition text-gray-400 hover:text-gray-600";
-
-    const primaryColor = isSLR ? 'bg-green-600' : 'bg-indigo-600';
-    const hoverColor = isSLR ? 'hover:bg-green-700' : 'hover:bg-indigo-700';
-    const shadowColor = isSLR ? 'shadow-green-200' : 'shadow-indigo-200';
-    const perfBg = isSLR ? 'bg-slate-800' : 'bg-indigo-900'; 
     
-    const els = {
-        'btn-new': `${primaryColor} text-white px-3 py-1 rounded-lg text-sm font-bold ${hoverColor} shadow-lg ${shadowColor} transition`,
-        'modal-btn': `w-full ${primaryColor} text-white py-3 rounded-xl font-bold shadow-lg ${hoverColor} transition mt-2`,
-        'bulk-btn': `w-full ${primaryColor} text-white py-3 rounded-xl font-bold shadow-lg ${hoverColor} transition mt-2`,
-        'btn-add-team': `${primaryColor} text-white px-3 py-2 rounded-lg font-bold text-xs ${hoverColor} transition`
-    };
-
+    const primaryColor = isSLR ? 'bg-green-600' : 'bg-indigo-600'; const hoverColor = isSLR ? 'hover:bg-green-700' : 'hover:bg-indigo-700'; const shadowColor = isSLR ? 'shadow-green-200' : 'shadow-indigo-200'; const perfBg = isSLR ? 'bg-slate-800' : 'bg-indigo-900'; 
+    const els = { 'btn-new': `${primaryColor} text-white px-3 py-1 rounded-lg text-sm font-bold ${hoverColor} shadow-lg ${shadowColor} transition`, 'modal-btn': `w-full ${primaryColor} text-white py-3 rounded-xl font-bold shadow-lg ${hoverColor} transition mt-2`, 'bulk-btn': `w-full ${primaryColor} text-white py-3 rounded-xl font-bold shadow-lg ${hoverColor} transition mt-2`, 'btn-add-team': `${primaryColor} text-white px-3 py-2 rounded-lg font-bold text-xs ${hoverColor} transition` };
     for (const [id, cls] of Object.entries(els)) { const el = document.getElementById(id); if(el) el.className = cls; }
     
-    const perfCard = document.getElementById('perf-card');
-    if(perfCard) perfCard.className = `${perfBg} text-white rounded-2xl p-5 shadow-xl relative overflow-hidden transition-colors duration-500`;
-    
-    const modalHeader = document.getElementById('team-modal-header');
-    if(modalHeader) modalHeader.className = `${perfBg} p-6 text-white shrink-0 transition-colors duration-500`;
-
-    const icon = document.getElementById('filter-icon');
-    if(icon) icon.className = `fa-solid fa-magnifying-glass mr-2 ${isSLR ? 'text-green-500' : 'text-indigo-500'}`;
-
-    const title = document.getElementById('app-title');
-    if(title) {
-        title.innerText = `${mode} Dispatch`;
-        title.className = `text-lg font-extrabold tracking-tight dark-text ${isSLR ? 'text-slate-800' : 'text-indigo-900'}`;
-    }
-
+    const perfCard = document.getElementById('perf-card'); if(perfCard) perfCard.className = `${perfBg} text-white rounded-2xl p-5 shadow-xl relative overflow-hidden transition-colors duration-500`;
+    const modalHeader = document.getElementById('team-modal-header'); if(modalHeader) modalHeader.className = `${perfBg} p-6 text-white shrink-0 transition-colors duration-500`;
+    const icon = document.getElementById('filter-icon'); if(icon) icon.className = `fa-solid fa-magnifying-glass mr-2 ${isSLR ? 'text-green-500' : 'text-indigo-500'}`;
+    const title = document.getElementById('app-title'); if(title) { title.innerText = `${mode} Dispatch`; title.className = `text-lg font-extrabold tracking-tight dark-text ${isSLR ? 'text-slate-800' : 'text-indigo-900'}`; }
     render(true);
 }
 
 window.switchTab = (tab) => {
     currentTab = tab; renderLimit = 50;
-    ['active', 'history', 'performance'].forEach(t => {
-        const el = document.getElementById(`nav-${t}`);
-        if(el) el.className = t === tab ? "flex-1 py-3 text-center text-sm nav-active" : "flex-1 py-3 text-center text-sm nav-item";
-    });
-    const listView = document.getElementById('view-list');
-    const perfView = document.getElementById('view-performance');
-    
-    if(tab === 'performance') { 
-        if(listView) listView.classList.add('hidden'); 
-        if(perfView) perfView.classList.remove('hidden'); 
-    } else { 
-        if(perfView) perfView.classList.add('hidden'); 
-        if(listView) listView.classList.remove('hidden'); 
-        const header = document.getElementById('list-header');
-        if(header) header.innerText = tab === 'active' ? "Active Dispatches" : "Accomplished Logs"; 
-    }
+    ['active', 'history', 'performance'].forEach(t => { const el = document.getElementById(`nav-${t}`); if(el) el.className = t === tab ? "flex-1 py-3 text-center text-sm nav-active" : "flex-1 py-3 text-center text-sm nav-item"; });
+    const listView = document.getElementById('view-list'); const perfView = document.getElementById('view-performance');
+    if(tab === 'performance') { if(listView) listView.classList.add('hidden'); if(perfView) perfView.classList.remove('hidden'); } else { if(perfView) perfView.classList.add('hidden'); if(listView) listView.classList.remove('hidden'); const header = document.getElementById('list-header'); if(header) header.innerText = tab === 'active' ? "Active Dispatches" : "Accomplished Logs"; }
     render(true);
 };
 
-window.clearAllFilters = () => { 
-    document.getElementById('global-date-filter').value = ''; 
-    document.getElementById('global-team-filter').value = ''; 
-    document.getElementById('global-area-filter').value = ''; 
-    document.getElementById('global-search').value = ''; 
-    render(true); 
-}
-
-window.logout = () => { localStorage.removeItem('slrLoggedIn'); location.reload(); };
-
-window.toggleSettings = () => { 
-    toggleModal('settings-modal'); 
-    document.getElementById('team-list-settings').innerHTML = [...DYNAMIC_TEAMS].sort().map(t => `
-        <div class="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-200 dark-bg-sub dark-border">
-            <span class="text-sm font-medium text-gray-700 dark-text">${t}</span>
-            <div class="flex gap-2">
-                <button onclick="renameTeam('${t}')" class="text-blue-400 hover:text-blue-600"><i class="fa-solid fa-pen"></i></button>
-                <button onclick="deleteTeam('${t}')" class="text-red-400 hover:text-red-600"><i class="fa-solid fa-trash-can"></i></button>
-            </div>
-        </div>`).join(''); 
-}
-
-window.addNewTeam = () => {
-    const val = document.getElementById('new-team-name').value.trim();
-    if (val && !DYNAMIC_TEAMS.has(val)) {
-        DYNAMIC_TEAMS.add(val);
-        document.getElementById('new-team-name').value = '';
-        toggleSettings();
-    }
-}
-
-window.toggleTheme = () => {
-    document.body.classList.toggle('dark-mode');
-    const isDark = document.body.classList.contains('dark-mode');
-    localStorage.setItem('slrTheme', isDark ? 'dark' : 'light');
-}
+window.clearAllFilters = () => { document.getElementById('global-date-filter').value = ''; document.getElementById('global-team-filter').value = ''; document.getElementById('global-area-filter').value = ''; document.getElementById('global-search').value = ''; render(true); }
+window.toggleSettings = () => { toggleModal('settings-modal'); document.getElementById('team-list-settings').innerHTML = [...DYNAMIC_TEAMS].sort().map(t => `<div class="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-200 dark-bg-sub dark-border"><span class="text-sm font-medium text-gray-700 dark-text">${t}</span><div class="flex gap-2"><button onclick="renameTeam('${t}')" class="text-blue-400 hover:text-blue-600"><i class="fa-solid fa-pen"></i></button><button onclick="deleteTeam('${t}')" class="text-red-400 hover:text-red-600"><i class="fa-solid fa-trash-can"></i></button></div></div>`).join(''); }
+window.addNewTeam = () => { const val = document.getElementById('new-team-name').value.trim(); if (val && !DYNAMIC_TEAMS.has(val)) { DYNAMIC_TEAMS.add(val); document.getElementById('new-team-name').value = ''; toggleSettings(); } }
+window.toggleTheme = () => { document.body.classList.toggle('dark-mode'); const isDark = document.body.classList.contains('dark-mode'); localStorage.setItem('slrTheme', isDark ? 'dark' : 'light'); }
 if(localStorage.getItem('slrTheme') === 'dark') document.body.classList.add('dark-mode');
 
 window.exportCSV = () => {
@@ -188,39 +77,78 @@ window.exportCSV = () => {
     if(dataToExport.length === 0) return console.warn("No data to export.");
     let csvContent = "data:text/csv;charset=utf-8,ID,Name,Team,Area,Status,Date Added,Date Done,Type,Remarks\n";
     dataToExport.forEach(row => {
-        const safeName = (row.name || "").replace(/,/g, " ");
-        const safeRem = (row.remarks || "").replace(/,/g, " ");
+        const safeName = (row.name || "").replace(/,/g, " "); const safeRem = (row.remarks || "").replace(/,/g, " ");
         let csvRow = `${row.id},${safeName},${row.team},${row.area},${row.status},${row.dateAdded},${row.dateDone || ""},${row.type || "SLR"},${safeRem}`;
         csvContent += csvRow + "\n";
     });
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Dispatch_Export_${currentAppMode}_${new Date().toLocaleDateString()}.csv`);
-    document.body.appendChild(link);
-    link.click();
+    const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `Dispatch_Export_${currentAppMode}_${new Date().toLocaleDateString()}.csv`); document.body.appendChild(link); link.click();
 }
 
 // ============================================
-// 5. INIT LOGIC
+// 5. SECURITY & AUTH (HIGH SECURITY UPDATE)
 // ============================================
 try {
     if (!window.supabase) console.error("Supabase SDK not loaded.");
     else { db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); log("Supabase Client Initialized"); }
 } catch (err) { console.error("Init Error:", err); }
 
-if(localStorage.getItem('slrLoggedIn') === 'true') { showApp(); }
+// --- AUTH STATE LISTENER ---
+if(db) {
+    db.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_IN' && session) {
+            showApp();
+        } else if (event === 'SIGNED_OUT') {
+            document.getElementById('login-screen').classList.remove('hidden'); 
+            document.getElementById('main-app').classList.add('hidden');
+        }
+    });
+    // Check initial session
+    db.auth.getSession().then(({ data: { session } }) => {
+        if (session) showApp();
+    });
+}
+
+// --- SECURE LOGIN ---
+window.attemptLogin = async () => {
+    const email = document.getElementById('login-user').value.trim(); // Now assumes Email
+    const pass = document.getElementById('login-pass').value.trim();
+    const errorMsg = document.getElementById('login-error');
+    
+    // Simple helper: If user enters just "mountaintop", we assume a domain? 
+    // Or just require full email. Let's require full email for security.
+    if(!email || !pass) { errorMsg.innerText = "Enter Email & Password"; errorMsg.classList.remove('hidden'); return; }
+
+    errorMsg.classList.add('hidden');
+    
+    const { data, error } = await db.auth.signInWithPassword({ email: email, password: pass });
+
+    if (error) {
+        log("Auth Error", error);
+        errorMsg.innerText = "Invalid Credentials";
+        errorMsg.classList.remove('hidden');
+    } else {
+        log("Login Success", data);
+        // showApp() is handled by onAuthStateChange above
+    }
+};
+
+window.logout = async () => { 
+    if(db) { await db.auth.signOut(); location.reload(); }
+};
 
 function showApp() { 
     document.getElementById('login-screen').classList.add('hidden'); 
     document.getElementById('main-app').classList.remove('hidden'); 
     if (db) startSupabaseListener(); 
-    // Safely init mode
     setTimeout(() => { if(window.switchAppMode) window.switchAppMode('SLR'); }, 100); 
 }
 
+// ============================================
+// 6. DATA & REALTIME
+// ============================================
 async function startSupabaseListener() {
     try {
+        // Now that RLS is on, this query will only return data if the user is authenticated!
         const { data, error } = await db.from('service_orders').select('*');
         if(error) throw error;
         soData = data || [];
@@ -230,14 +158,9 @@ async function startSupabaseListener() {
 
         db.channel('custom-all-channel')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'service_orders' }, (payload) => {
-            if(payload.eventType === 'INSERT') {
-                if (!soData.find(i => i.id === payload.new.id)) soData.push(payload.new);
-            } else if(payload.eventType === 'UPDATE') {
-                const index = soData.findIndex(i => i.id === payload.new.id);
-                if(index !== -1) soData[index] = payload.new;
-            } else if(payload.eventType === 'DELETE') {
-                soData = soData.filter(i => i.id !== payload.old.id);
-            }
+            if(payload.eventType === 'INSERT') { if (!soData.find(i => i.id === payload.new.id)) soData.push(payload.new); } 
+            else if(payload.eventType === 'UPDATE') { const index = soData.findIndex(i => i.id === payload.new.id); if(index !== -1) soData[index] = payload.new; } 
+            else if(payload.eventType === 'DELETE') { soData = soData.filter(i => i.id !== payload.old.id); }
             extractDynamicOptions();
             render(false);
         })
@@ -247,137 +170,49 @@ async function startSupabaseListener() {
 
 function extractDynamicOptions() {
     DYNAMIC_TEAMS.clear(); DYNAMIC_AREAS.clear(); 
-    soData.forEach(item => {
-        if(item.team) DYNAMIC_TEAMS.add(item.team);
-        if(item.area) DYNAMIC_AREAS.add(item.area);
-    });
+    soData.forEach(item => { if(item.team) DYNAMIC_TEAMS.add(item.team); if(item.area) DYNAMIC_AREAS.add(item.area); });
     populateFilterDropdown('global-team-filter', DYNAMIC_TEAMS, "All Teams");
     populateFilterDropdown('global-area-filter', DYNAMIC_AREAS, "All Areas");
 }
 
 function populateFilterDropdown(id, set, label) {
-    const el = document.getElementById(id);
-    if(!el) return;
-    const currentVal = el.value; 
-    let html = `<option value="">${label}</option>`;
+    const el = document.getElementById(id); if(!el) return;
+    const currentVal = el.value; let html = `<option value="">${label}</option>`;
     [...set].sort().forEach(val => { html += `<option value="${val}">${val}</option>`; });
-    el.innerHTML = html;
-    el.value = currentVal; 
+    el.innerHTML = html; el.value = currentVal; 
 }
 
 // ============================================
-// 6. CRUD ACTIONS
+// 7. CRUD ACTIONS
 // ============================================
-window.attemptLogin = () => { const u = document.getElementById('login-user').value.trim(); const p = document.getElementById('login-pass').value.trim(); if(u === "mountaintop" && p === "mountaintopadmin") { localStorage.setItem('slrLoggedIn', 'true'); showApp(); } else { document.getElementById('login-error').classList.remove('hidden'); } };
-
 window.saveSO = async () => {
     if(!db) return alert("Database disconnected");
-    const id = document.getElementById('edit-id').value;
-    const name = document.getElementById('input-name').value;
-    let team = document.getElementById('input-team').value;
-    if (team === "NEW_ENTRY") team = document.getElementById('input-team-custom').value.trim();
-    let area = document.getElementById('input-area').value;
-    if (area === "NEW_ENTRY") area = document.getElementById('input-area-custom').value.trim();
-    
+    const id = document.getElementById('edit-id').value; const name = document.getElementById('input-name').value;
+    let team = document.getElementById('input-team').value; if (team === "NEW_ENTRY") team = document.getElementById('input-team-custom').value.trim();
+    let area = document.getElementById('input-area').value; if (area === "NEW_ENTRY") area = document.getElementById('input-area-custom').value.trim();
     if(!name || !team || !area) return alert("All fields required");
     const payload = { name, team, area, type: currentAppMode }; 
-
     try {
         if(!id) {
-            payload.id = crypto.randomUUID();
-            payload.status = 'active';
-            payload.dateAdded = new Date().toLocaleDateString();
-            payload.pic = false; payload.pwr = false; payload.speed = false; payload.rpt = false;
-            const { error } = await db.from('service_orders').insert([payload]);
-            if(error) throw error;
-            soData.push(payload); 
+            payload.id = crypto.randomUUID(); payload.status = 'active'; payload.dateAdded = new Date().toLocaleDateString(); payload.pic = false; payload.pwr = false; payload.speed = false; payload.rpt = false;
+            const { error } = await db.from('service_orders').insert([payload]); if(error) throw error; soData.push(payload); 
         } else {
-            const { error } = await db.from('service_orders').update(payload).eq('id', id);
-            if(error) throw error;
-            const index = soData.findIndex(i => i.id === id);
-            if(index !== -1) soData[index] = { ...soData[index], ...payload };
+            const { error } = await db.from('service_orders').update(payload).eq('id', id); if(error) throw error;
+            const index = soData.findIndex(i => i.id === id); if(index !== -1) soData[index] = { ...soData[index], ...payload };
         }
-        extractDynamicOptions();
-        render(false); 
-        toggleModal('form-modal');
+        extractDynamicOptions(); render(false); toggleModal('form-modal');
     } catch (e) { alert("Save Failed: " + e.message); }
 }
 
-window.deleteSO = async (id) => {
-    if(!confirm("Delete this record permanently?")) return;
-    try {
-        const { error } = await db.from('service_orders').delete().eq('id', id);
-        if(error) throw error;
-        soData = soData.filter(i => i.id !== id);
-        render(false);
-    } catch (e) { alert("Delete Failed: " + e.message); }
-}
-
-window.renameTeam = async (oldName) => {
-    const newName = prompt(`Rename "${oldName}" to:`, oldName);
-    if (!newName || newName === oldName) return;
-    if (!confirm(`Rename "${oldName}" to "${newName}" everywhere?`)) return;
-    try {
-        const { error } = await db.from('service_orders').update({ team: newName }).eq('team', oldName);
-        if(error) throw error;
-        soData.forEach(item => { if(item.team === oldName) item.team = newName; });
-        extractDynamicOptions(); render(false); toggleSettings(); 
-    } catch (e) { alert("Rename Failed: " + e.message); }
-}
-
-window.deleteTeam = async (teamName) => {
-    if(!confirm(`Delete ALL records for "${teamName}"?`)) return;
-    try {
-        const { error } = await db.from('service_orders').delete().eq('team', teamName);
-        if(error) throw error;
-        soData = soData.filter(item => item.team !== teamName);
-        extractDynamicOptions(); render(false); toggleSettings();
-    } catch (e) { alert("Delete Failed: " + e.message); }
-}
-
-window.markDone = async (id) => {
-    const itemIndex = soData.findIndex(i => i.id == id);
-    if(itemIndex === -1) return;
-    const rem = document.getElementById(`rem-${id}`).value || soData[itemIndex].remarks || "";
-    const dateDone = new Date().toLocaleDateString();
-    try {
-        await db.from('service_orders').update({ status: 'done', remarks: rem, dateDone: dateDone }).eq('id', id);
-        soData[itemIndex].status = 'done'; soData[itemIndex].remarks = rem; soData[itemIndex].dateDone = dateDone;
-        render(false);
-    } catch(e) { console.error(e); }
-}
-
-window.toggleCheck = async (id, key) => {
-    const index = soData.findIndex(i => i.id == id);
-    if(index === -1) return;
-    const newVal = !soData[index][key];
-    soData[index][key] = newVal;
-    render(false); 
-    const updateObj = {}; updateObj[key] = newVal;
-    await db.from('service_orders').update(updateObj).eq('id', id);
-}
-
-window.saveBulkSO = async () => {
-    const rawText = document.getElementById('bulk-names').value;
-    let team = document.getElementById('bulk-team').value;
-    let area = document.getElementById('bulk-area').value;
-    if(team === "NEW_ENTRY" || area === "NEW_ENTRY") return alert("Please select an existing Team/Area for Bulk.");
-    const names = rawText.split(/\r?\n/).map(n => n.trim()).filter(n => n.length > 0);
-    if(names.length === 0) return alert("No names entered");
-    const rows = names.map(name => ({ id: crypto.randomUUID(), name, team, area, type: currentAppMode, status: 'active', dateAdded: new Date().toLocaleDateString(), pic: false, pwr: false, speed: false, rpt: false }));
-    document.getElementById('bulk-btn').innerText = "Processing...";
-    try {
-        const { error } = await db.from('service_orders').insert(rows);
-        if(error) throw error;
-        soData.push(...rows);
-        render(false);
-        toggleModal('bulk-modal');
-        document.getElementById('bulk-btn').innerText = "Dispatch All";
-    } catch (e) { alert("Bulk Error: " + e.message); document.getElementById('bulk-btn').innerText = "Dispatch All"; }
-}
+window.deleteSO = async (id) => { if(!confirm("Delete this record permanently?")) return; try { const { error } = await db.from('service_orders').delete().eq('id', id); if(error) throw error; soData = soData.filter(i => i.id !== id); render(false); } catch (e) { alert("Delete Failed: " + e.message); } }
+window.renameTeam = async (oldName) => { const newName = prompt(`Rename "${oldName}" to:`, oldName); if (!newName || newName === oldName) return; if (!confirm(`Rename "${oldName}" to "${newName}" everywhere?`)) return; try { const { error } = await db.from('service_orders').update({ team: newName }).eq('team', oldName); if(error) throw error; soData.forEach(item => { if(item.team === oldName) item.team = newName; }); extractDynamicOptions(); render(false); toggleSettings(); } catch (e) { alert("Rename Failed: " + e.message); } }
+window.deleteTeam = async (teamName) => { if(!confirm(`Delete ALL records for "${teamName}"?`)) return; try { const { error } = await db.from('service_orders').delete().eq('team', teamName); if(error) throw error; soData = soData.filter(item => item.team !== teamName); extractDynamicOptions(); render(false); toggleSettings(); } catch (e) { alert("Delete Failed: " + e.message); } }
+window.markDone = async (id) => { const itemIndex = soData.findIndex(i => i.id == id); if(itemIndex === -1) return; const rem = document.getElementById(`rem-${id}`).value || soData[itemIndex].remarks || ""; const dateDone = new Date().toLocaleDateString(); try { await db.from('service_orders').update({ status: 'done', remarks: rem, dateDone: dateDone }).eq('id', id); soData[itemIndex].status = 'done'; soData[itemIndex].remarks = rem; soData[itemIndex].dateDone = dateDone; render(false); } catch(e) { console.error(e); } }
+window.toggleCheck = async (id, key) => { const index = soData.findIndex(i => i.id == id); if(index === -1) return; const newVal = !soData[index][key]; soData[index][key] = newVal; render(false); const updateObj = {}; updateObj[key] = newVal; await db.from('service_orders').update(updateObj).eq('id', id); }
+window.saveBulkSO = async () => { const rawText = document.getElementById('bulk-names').value; let team = document.getElementById('bulk-team').value; let area = document.getElementById('bulk-area').value; if(team === "NEW_ENTRY" || area === "NEW_ENTRY") return alert("Please select an existing Team/Area for Bulk."); const names = rawText.split(/\r?\n/).map(n => n.trim()).filter(n => n.length > 0); if(names.length === 0) return alert("No names entered"); const rows = names.map(name => ({ id: crypto.randomUUID(), name, team, area, type: currentAppMode, status: 'active', dateAdded: new Date().toLocaleDateString(), pic: false, pwr: false, speed: false, rpt: false })); document.getElementById('bulk-btn').innerText = "Processing..."; try { const { error } = await db.from('service_orders').insert(rows); if(error) throw error; soData.push(...rows); render(false); toggleModal('bulk-modal'); document.getElementById('bulk-btn').innerText = "Dispatch All"; } catch (e) { alert("Bulk Error: " + e.message); document.getElementById('bulk-btn').innerText = "Dispatch All"; } }
 
 // ============================================
-// 7. RENDER LOGIC
+// 8. RENDER LOGIC
 // ============================================
 function render(resetLimit = false) {
     if(resetLimit) renderLimit = 50;
@@ -458,7 +293,6 @@ function createCardHTML(item) {
     const border = isSLR ? 'border-green-500' : 'border-indigo-500';
     const check = (val) => val ? 'checked' : '';
     const actionBtn = isDone ? `<span class="text-xs font-bold text-${color}-600"><i class="fa-solid fa-check-double mr-1"></i>Completed</span>` : `<button onclick="markDone('${item.id}')" class="bg-${color}-600 hover:bg-${color}-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow uppercase tracking-wide transition flex items-center"><i class="fa-solid fa-check mr-1"></i> Done</button>`;
-    
     return `
     <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 ${item.team && item.team.toLowerCase().includes('bernie') ? 'border-orange-400' : border} fade-in mb-3 dark-element">
         <div class="flex justify-between items-start mb-2">
@@ -477,20 +311,9 @@ function createCardHTML(item) {
 
 function renderPerformance(data) {
     const stats = { total: data.length, done: 0, teams: {}, areas: {} };
-    data.forEach(item => {
-        if(!stats.teams[item.team]) stats.teams[item.team] = { total: 0, done: 0 };
-        if(!stats.areas[item.area]) stats.areas[item.area] = { total: 0, done: 0 };
-        stats.teams[item.team].total++;
-        if(item.status === 'done') stats.teams[item.team].done++;
-        stats.areas[item.area].total++;
-        if(item.status === 'done') stats.areas[item.area].done++;
-    });
-
+    data.forEach(item => { if(!stats.teams[item.team]) stats.teams[item.team] = { total: 0, done: 0 }; if(!stats.areas[item.area]) stats.areas[item.area] = { total: 0, done: 0 }; stats.teams[item.team].total++; if(item.status === 'done') stats.teams[item.team].done++; stats.areas[item.area].total++; if(item.status === 'done') stats.areas[item.area].done++; });
     const percent = stats.total === 0 ? 0 : Math.round((stats.done / stats.total) * 100);
-    document.getElementById('global-percent').innerText = percent + '%';
-    document.getElementById('global-done').innerText = stats.done;
-    document.getElementById('global-total').innerText = stats.total;
-    document.getElementById('global-bar').style.width = percent + '%';
+    document.getElementById('global-percent').innerText = percent + '%'; document.getElementById('global-done').innerText = stats.done; document.getElementById('global-total').innerText = stats.total; document.getElementById('global-bar').style.width = percent + '%';
     document.getElementById('team-stats-container').innerHTML = Object.entries(stats.teams).map(([n,d]) => renderMiniCard(n,d.done,d.total)).join('');
     document.getElementById('area-stats-container').innerHTML = Object.entries(stats.areas).map(([n,d]) => renderAreaRow(n,d.done,d.total)).join('');
 }
@@ -503,47 +326,18 @@ window.handleDropdownChange = (type) => {
 
 window.openModal = (editId = null) => { 
     const teamContainer = document.getElementById('input-team').parentNode;
-    if(!document.getElementById('input-team-custom')) {
-        teamContainer.innerHTML += `<input type="text" id="input-team-custom" placeholder="Enter New Team Name" class="hidden w-full border border-blue-300 bg-blue-50 rounded-lg p-2.5 mt-2 outline-none fade-in dark-input">`;
-        document.getElementById('input-team').setAttribute('onchange', "handleDropdownChange('team')");
-    }
+    if(!document.getElementById('input-team-custom')) { teamContainer.innerHTML += `<input type="text" id="input-team-custom" placeholder="Enter New Team Name" class="hidden w-full border border-blue-300 bg-blue-50 rounded-lg p-2.5 mt-2 outline-none fade-in dark-input">`; document.getElementById('input-team').setAttribute('onchange', "handleDropdownChange('team')"); }
     const areaContainer = document.getElementById('input-area').parentNode;
-    if(!document.getElementById('input-area-custom')) {
-        areaContainer.innerHTML += `<input type="text" id="input-area-custom" placeholder="Enter New Area Name" class="hidden w-full border border-blue-300 bg-blue-50 rounded-lg p-2.5 mt-2 outline-none fade-in dark-input">`;
-        document.getElementById('input-area').setAttribute('onchange', "handleDropdownChange('area')");
-    }
-    document.getElementById('input-team-custom').classList.add('hidden'); document.getElementById('input-team-custom').value = '';
-    document.getElementById('input-area-custom').classList.add('hidden'); document.getElementById('input-area-custom').value = '';
-
-    let editItem = null;
-    if(editId) editItem = soData.find(i => i.id == editId);
-    document.getElementById('input-team').innerHTML = buildOptions(DYNAMIC_TEAMS, editItem ? editItem.team : null);
-    document.getElementById('input-area').innerHTML = buildOptions(DYNAMIC_AREAS, editItem ? editItem.area : null);
-    
-    if(editItem) { 
-        document.getElementById('modal-title').innerText = "Edit Details"; document.getElementById('modal-btn').innerText = "Save Changes"; document.getElementById('edit-id').value = editId; document.getElementById('input-name').value = editItem.name; 
-    } else { 
-        document.getElementById('modal-title').innerText = "New Dispatch"; document.getElementById('modal-btn').innerText = "Confirm Dispatch"; document.getElementById('edit-id').value = ""; document.getElementById('input-name').value = ""; 
-    } 
+    if(!document.getElementById('input-area-custom')) { areaContainer.innerHTML += `<input type="text" id="input-area-custom" placeholder="Enter New Area Name" class="hidden w-full border border-blue-300 bg-blue-50 rounded-lg p-2.5 mt-2 outline-none fade-in dark-input">`; document.getElementById('input-area').setAttribute('onchange', "handleDropdownChange('area')"); }
+    document.getElementById('input-team-custom').classList.add('hidden'); document.getElementById('input-team-custom').value = ''; document.getElementById('input-area-custom').classList.add('hidden'); document.getElementById('input-area-custom').value = '';
+    let editItem = null; if(editId) editItem = soData.find(i => i.id == editId);
+    document.getElementById('input-team').innerHTML = buildOptions(DYNAMIC_TEAMS, editItem ? editItem.team : null); document.getElementById('input-area').innerHTML = buildOptions(DYNAMIC_AREAS, editItem ? editItem.area : null);
+    if(editItem) { document.getElementById('modal-title').innerText = "Edit Details"; document.getElementById('modal-btn').innerText = "Save Changes"; document.getElementById('edit-id').value = editId; document.getElementById('input-name').value = editItem.name; } else { document.getElementById('modal-title').innerText = "New Dispatch"; document.getElementById('modal-btn').innerText = "Confirm Dispatch"; document.getElementById('edit-id').value = ""; document.getElementById('input-name').value = ""; } 
     toggleModal('form-modal'); 
 }
 
-window.openBulkModal = () => { 
-    document.getElementById('bulk-team').innerHTML = buildOptions(DYNAMIC_TEAMS, null); 
-    document.getElementById('bulk-area').innerHTML = buildOptions(DYNAMIC_AREAS, null); 
-    document.getElementById('bulk-names').value = ''; document.getElementById('bulk-btn').innerText = 'Dispatch All'; toggleModal('bulk-modal'); 
-}
-
+window.openBulkModal = () => { document.getElementById('bulk-team').innerHTML = buildOptions(DYNAMIC_TEAMS, null); document.getElementById('bulk-area').innerHTML = buildOptions(DYNAMIC_AREAS, null); document.getElementById('bulk-names').value = ''; document.getElementById('bulk-btn').innerText = 'Dispatch All'; toggleModal('bulk-modal'); }
 window.toggleModal = (id) => { const m = document.getElementById(id); m.classList.toggle('hidden'); m.classList.toggle('flex'); }
-
-window.openTeamAnalytics = (teamName) => { 
-    let teamData = soData.filter(i => i.team === teamName && (i.type || 'SLR') === currentAppMode);
-    const done = teamData.filter(i => i.status === 'done').length;
-    const total = teamData.length;
-    const percent = total === 0 ? 0 : Math.round((done / total) * 100);
-    document.getElementById('team-modal-name').innerText = teamName; document.getElementById('team-modal-percent').innerText = percent + "%"; document.getElementById('team-modal-total').innerText = total; document.getElementById('team-modal-done').innerText = done; document.getElementById('team-modal-areas').innerHTML = ""; document.getElementById('team-modal-history').innerHTML = ""; 
-    toggleModal('team-analytics-modal'); 
-};
-
+window.openTeamAnalytics = (teamName) => { let teamData = soData.filter(i => i.team === teamName && (i.type || 'SLR') === currentAppMode); const done = teamData.filter(i => i.status === 'done').length; const total = teamData.length; const percent = total === 0 ? 0 : Math.round((done / total) * 100); document.getElementById('team-modal-name').innerText = teamName; document.getElementById('team-modal-percent').innerText = percent + "%"; document.getElementById('team-modal-total').innerText = total; document.getElementById('team-modal-done').innerText = done; document.getElementById('team-modal-areas').innerHTML = ""; document.getElementById('team-modal-history').innerHTML = ""; toggleModal('team-analytics-modal'); };
 window.clearDateFilter = () => { document.getElementById('global-date-filter').value = ''; render(true); }
 window.showMore = () => { renderLimit += 50; render(false); }
