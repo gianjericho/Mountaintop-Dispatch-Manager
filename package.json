@@ -4,7 +4,10 @@
   "description": "",
   "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "npx http-server -p 5500 .",
+    "test": "npx cypress run",
+    "test:open": "npx cypress open",
+    "build": "javascript-obfuscator app.js --output app.min.js --compact true --self-defending true --string-array true --string-array-rotate true --disable-console-output true"
   },
   "repository": {
     "type": "git",
@@ -20,6 +23,7 @@
   "homepage": "https://github.com/gianjericho/Mountaintop-SO-Analytics#readme",
   "devDependencies": {
     "cypress": "^15.10.0",
-    "http-server": "^14.1.1"
+    "http-server": "^14.1.1",
+    "javascript-obfuscator": "^5.3.0"
   }
 }

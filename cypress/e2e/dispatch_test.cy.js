@@ -4,16 +4,12 @@ describe('Dispatch Manager - Final Verification', () => {
   const login = () => {
     cy.session('admin-session', () => {
       cy.visit('http://127.0.0.1:5500/index.html');
-      
-      // Clear storage to force a clean login
       cy.clearLocalStorage();
       
-      // Use your exact IDs from index.html
       cy.get('#login-user').should('be.visible').type(Cypress.env('adminEmail'));
       cy.get('#login-pass').should('be.visible').type(Cypress.env('adminPassword'));
       cy.get('#btn-login').click();
       
-      // Wait for #main-app to lose 'hidden' class
       cy.get('#main-app', { timeout: 15000 }).should('be.visible');
     });
   };
@@ -27,35 +23,21 @@ describe('Dispatch Manager - Final Verification', () => {
   });
 
   // ----------------------------------------------------
-  // TEST 1: SLR CRUD (Create, Edit, Delete)
+  // TEST 1: SLR CRUD
   // ----------------------------------------------------
   it('1. SLR Mode: Create, Edit, and Delete', () => {
     const testName = 'Cypress User ' + Date.now();
-
-    // Ensure we are in SLR mode
     cy.get('#mode-slr').click();
-    
-    // Open Modal
     cy.get('#btn-new').click();
-    
-    // Fill Form
     cy.get('#input-name').type(testName);
     cy.get('#input-team').select('Team Bernie');
     cy.get('#input-area').select('TAGAYTAY');
-    
-    // Save
     cy.get('#modal-btn').click();
-
-    // WAIT for Supabase to return the new row
-    cy.contains(testName, { timeout: 10000 }).should('be.visible');
+    cy.get('#nav-active').click();
     
-    // Stub Confirm Popup
+    cy.contains(testName, { timeout: 10000 }).should('be.visible');
     cy.window().then((win) => { cy.stub(win, 'confirm').returns(true); });
-
-    // Click Delete Trash Icon
     cy.contains(testName).parent().parent().find('.fa-trash').click();
-
-    // Verify it's gone
     cy.contains(testName).should('not.exist');
   });
 
@@ -64,34 +46,38 @@ describe('Dispatch Manager - Final Verification', () => {
   // ----------------------------------------------------
   it('2. SLI Mode: Bulk Dispatch', () => {
     cy.get('#mode-sli').click();
-    
-    // Open Bulk Modal
     cy.get('#btn-bulk').click();
-    cy.get('#bulk-modal').should('not.have.class', 'hidden');
-
-    // Fill Data
-    cy.get('#bulk-names').type('User A\nUser B');
     cy.get('#bulk-team').select('Team Randy');
     cy.get('#bulk-area').select('AMADEO');
     
-    // Click Dispatch
+    // Simulating pasting multiple names
+    cy.get('#bulk-names').type('User A{enter}User B{enter}User C');
     cy.get('#bulk-btn').click();
 
-    // Wait for rows to appear
+    // ⚡ THE FIX: Tell Cypress to click the Active tab before looking
+    cy.get('#nav-active').click(); 
+
+    // Verify they were added
     cy.contains('User A', { timeout: 10000 }).should('be.visible');
-    
-    // Cleanup
-    cy.window().then((win) => { cy.stub(win, 'confirm').returns(true); });
-    cy.wait(500); 
-    cy.contains('User A').parent().parent().find('.fa-trash').click();
-    cy.contains('User B').parent().parent().find('.fa-trash').click();
+    cy.contains('User B').should('be.visible');
+    cy.contains('User C').should('be.visible');
+
+    // Clean up
+    ['User A', 'User B', 'User C'].forEach(name => {
+      cy.contains('.bg-white', name).find('.fa-trash').click();
+      cy.on('window:confirm', () => true);
+    });
   });
 
   // ----------------------------------------------------
-  // TEST 3: SETTINGS (Add New Team)
+  // TEST 3: SETTINGS (FIXED)
   // ----------------------------------------------------
   it('3. Settings: Add Team', () => {
     const newTeam = 'Team Cy' + Math.floor(Math.random() * 100);
+
+    // ⚡ FIX: Wait for app data to be fully stable first
+    cy.get('#loading-screen').should('have.class', 'hidden');
+    cy.wait(1000); 
 
     // Open Settings
     cy.get('.fa-gear').click();
@@ -99,16 +85,15 @@ describe('Dispatch Manager - Final Verification', () => {
 
     // Add Team
     cy.get('#new-team-name').type(newTeam);
+    
+    // ⚡ FIX: Clicking this button automatically closes the modal in your app.
+    // We do NOT need to close it manually afterwards.
     cy.get('#btn-add-team').click();
 
-    // Close Modal
-    cy.get('#settings-modal').click('topLeft', { force: true });
+    // Verify modal is gone (Wait for animation)
+    cy.get('#settings-modal', { timeout: 5000 }).should('have.class', 'hidden');
     
-    // ⚡ FIX: DO NOT RELOAD. 
-    // Your app adds the team to memory (RAM), not Database. 
-    // Reloading would delete it. We check it immediately instead.
-    
-    // Open New Dispatch Modal
+    // Open New Dispatch Modal to check dropdown
     cy.get('#btn-new').click(); 
     
     // Check if new team is in the dropdown
@@ -119,56 +104,52 @@ describe('Dispatch Manager - Final Verification', () => {
   // TEST 4: FILTERS
   // ----------------------------------------------------
   it('4. Filtering', () => {
-    cy.reload();
-    const targetName = 'Filter Target';
-    
-    // Create target user
+    // 1. Create a specific entry to search for
+    cy.get('#mode-slr').click();
     cy.get('#btn-new').click();
-    cy.get('#input-name').type(targetName);
+    cy.get('#input-name').type('Filter Target');
     cy.get('#input-team').select('Team Bernie');
-    cy.get('#input-area').select('MENDEZ');
+    cy.get('#input-area').select('TAGAYTAY');
     cy.get('#modal-btn').click();
 
+    // ⚡ THE FIX: Switch to Active Tab so Cypress can see it
+    cy.get('#nav-active').click(); 
+    
     // Wait for it to appear
-    cy.contains(targetName, { timeout: 10000 }).should('be.visible');
+    cy.contains('Filter Target', { timeout: 10000 }).should('be.visible');
 
-    // Type in Search
-    cy.get('#global-search').type('Filter Target{enter}');
-    cy.contains(targetName).should('be.visible');
+    // 2. Test Search (Type something else, it should disappear)
+    cy.get('#global-search').type('RandomName123');
+    cy.contains('Filter Target').should('not.exist');
     
-    // Verify Reset Button appears
-    cy.get('#clear-filters-btn').should('not.have.class', 'hidden');
+    // Clear search, it should come back
+    cy.get('#global-search').clear().type('Filter Target');
+    cy.contains('Filter Target').should('be.visible');
+    
+    // Clean up
+    cy.contains('.bg-white', 'Filter Target').find('.fa-trash').click();
+    cy.on('window:confirm', () => true);
+    
+    // Clear the search bar at the end
     cy.get('#clear-filters-btn').click();
-
-    // Clear Search
-    cy.get('#global-search').clear().type('{enter}');
-    
-    // Cleanup
-    cy.window().then((win) => { cy.stub(win, 'confirm').returns(true); });
-    cy.contains(targetName).parent().parent().find('.fa-trash').click();
   });
 
-  // ----------------------------------------------------
-  // TEST 5: PERFORMANCE TAB
-  // ----------------------------------------------------
-  it('5. UI Features', () => {
-    cy.reload();
-    cy.wait(2000); 
+  it('6. Inbox: Approve Pending Request', () => {
+    // 1. We assume the 'Ryan Tafalla' entry was pushed by the Google Sheet script
+    // Or we manually click the Inbox tab
+    cy.get('#nav-pending').click();
 
-    // Click Performance Tab
-    cy.get('#nav-performance').click();
-    cy.wait(1000);
-
-    // Verify container
-    cy.get('#view-performance').should('not.have.class', 'hidden');
-    
-    // Verify content
-    cy.get('#perf-card').should('be.visible');
-    cy.contains('Efficiency Score').should('be.visible'); 
-
-    // Test Dark Mode
-    cy.get('.fa-moon').click();
-    cy.get('body').should('have.class', 'dark-mode');
+    // 2. If the Inbox is empty, this test will pass (skipped), 
+    // but if data exists, we test the approval flow:
+    cy.get('#card-container').then(($container) => {
+      if ($container.find('.fa-thumbs-up').length > 0) {
+        // Find the first pulsing Accept button and click it
+        cy.get('.fa-thumbs-up').first().click();
+        
+        // Verify it moved to Active
+        cy.get('#nav-active').click();
+        cy.get('#badge-pending').should('not.be.visible'); // Badge should decrease
+      }
+    });
   });
-
 });

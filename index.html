@@ -54,6 +54,10 @@
             </div>
             
             <div class="max-w-lg mx-auto px-4 flex mt-1 border-b border-gray-200 dark-border bg-white dark-element">
+                <button onclick="switchTab('pending')" id="nav-pending" class="flex-1 py-3 text-center text-sm nav-item relative">
+                    Inbox 
+                    <span id="badge-pending" class="hidden absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-1.5 rounded-full">0</span>
+                </button>
                 <button onclick="switchTab('active')" id="nav-active" class="flex-1 py-3 text-center text-sm nav-active">Dispatch</button>
                 <button onclick="switchTab('history')" id="nav-history" class="flex-1 py-3 text-center text-sm nav-item">History</button>
                 <button onclick="switchTab('performance')" id="nav-performance" class="flex-1 py-3 text-center text-sm nav-item">Performance</button>
@@ -151,6 +155,6 @@
 
     <div id="team-analytics-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden items-center justify-center p-4 z-50 backdrop-blur-sm"><div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col max-h-[80vh] dark-element"><div id="team-modal-header" class="p-6 text-white shrink-0"><div class="flex justify-between items-start"><div><p class="text-xs font-bold text-white/70 uppercase">Team Performance</p><h2 class="text-2xl font-bold" id="team-modal-name"></h2></div><button onclick="toggleModal('team-analytics-modal')" class="text-white/50 hover:text-white"><i class="fa-solid fa-times text-xl"></i></button></div><div class="mt-4 flex items-end gap-2"><span class="text-4xl font-bold" id="team-modal-percent"></span><span class="text-sm text-white/70 mb-1">Efficiency</span></div></div><div class="p-4 overflow-y-auto"><div class="grid grid-cols-2 gap-3 mb-4"><div class="bg-blue-50 p-3 rounded-xl border border-blue-100 text-center dark-bg-sub dark-border"><p class="text-xs text-blue-500 font-bold uppercase">Total</p><p class="text-xl font-bold text-blue-700" id="team-modal-total"></p></div><div class="bg-green-50 p-3 rounded-xl border border-green-100 text-center dark-bg-sub dark-border"><p class="text-xs text-green-500 font-bold uppercase">Done</p><p class="text-xl font-bold text-green-700" id="team-modal-done"></p></div></div><h4 class="text-xs font-bold text-gray-400 uppercase mb-2">Top Areas</h4><div id="team-modal-areas" class="space-y-1 mb-4"></div><h4 class="text-xs font-bold text-gray-400 uppercase mb-2">History</h4><div id="team-modal-history" class="space-y-2 text-sm text-gray-600"></div></div></div></div>
 
-    <script src="app.js"></script>
+    <script src="app.min.js"></script>
 </body>
 </html>

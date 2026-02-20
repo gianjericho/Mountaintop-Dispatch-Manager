@@ -14,13 +14,14 @@ let soData = [];
 let DYNAMIC_TEAMS = new Set(["Team Bernie", "Team Randy"]); 
 let DYNAMIC_AREAS = new Set(["TAGAYTAY", "AMADEO", "MENDEZ", "BAILEN", "MARAGONDON", "ALFONSO", "MAGALLANES", "INDANG"]);
 
+// ⚡ CHANGED: Default mode is now SLR, but default Tab can be active or pending.
 let currentTab = 'active';
 let currentAppMode = 'SLR'; 
 let renderLimit = 50;
 let db = null; 
 
 // ============================================
-// 3. UTILITIES & HELPERS
+// 3. UTILITIES & HELPERS (No Changes)
 // ============================================
 function parseDateInput(input) { if (!input) return null; const parts = input.split('-'); return new Date(parts[0], parts[1] - 1, parts[2]); }
 function isSameDay(d1, d2) { if(!d1 || !d2) return false; const date1 = new Date(d1); const date2 = new Date(d2); return date1.getFullYear() === date2.getFullYear() && date1.getMonth() === date2.getMonth() && date1.getDate() === date2.getDate(); }
@@ -58,11 +59,27 @@ window.switchAppMode = (mode) => {
     render(true);
 }
 
+// ⚡ CHANGED: Added 'pending' tab logic
 window.switchTab = (tab) => {
     currentTab = tab; renderLimit = 50;
-    ['active', 'history', 'performance'].forEach(t => { const el = document.getElementById(`nav-${t}`); if(el) el.className = t === tab ? "flex-1 py-3 text-center text-sm nav-active" : "flex-1 py-3 text-center text-sm nav-item"; });
+    ['pending', 'active', 'history', 'performance'].forEach(t => { 
+        const el = document.getElementById(`nav-${t}`); 
+        if(el) el.className = t === tab ? "flex-1 py-3 text-center text-sm nav-active" : "flex-1 py-3 text-center text-sm nav-item relative"; 
+    });
     const listView = document.getElementById('view-list'); const perfView = document.getElementById('view-performance');
-    if(tab === 'performance') { if(listView) listView.classList.add('hidden'); if(perfView) perfView.classList.remove('hidden'); } else { if(perfView) perfView.classList.add('hidden'); if(listView) listView.classList.remove('hidden'); const header = document.getElementById('list-header'); if(header) header.innerText = tab === 'active' ? "Active Dispatches" : "Accomplished Logs"; }
+    if(tab === 'performance') { if(listView) listView.classList.add('hidden'); if(perfView) perfView.classList.remove('hidden'); } 
+    else { 
+        if(perfView) perfView.classList.add('hidden'); 
+        if(listView) listView.classList.remove('hidden'); 
+        const header = document.getElementById('list-header'); 
+        
+        // ⚡ CHANGED: Dynamic Header
+        if(header) {
+            if (tab === 'active') header.innerText = "Active Dispatches";
+            else if (tab === 'history') header.innerText = "Accomplished Logs";
+            else if (tab === 'pending') header.innerText = "Inbox (Pending Approval)";
+        }
+    }
     render(true);
 };
 
@@ -85,14 +102,13 @@ window.exportCSV = () => {
 }
 
 // ============================================
-// 5. SECURITY & AUTH (HIGH SECURITY UPDATE)
+// 5. SECURITY & AUTH
 // ============================================
 try {
     if (!window.supabase) console.error("Supabase SDK not loaded.");
     else { db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); log("Supabase Client Initialized"); }
 } catch (err) { console.error("Init Error:", err); }
 
-// --- AUTH STATE LISTENER ---
 if(db) {
     db.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_IN' && session) {
@@ -102,33 +118,22 @@ if(db) {
             document.getElementById('main-app').classList.add('hidden');
         }
     });
-    // Check initial session
     db.auth.getSession().then(({ data: { session } }) => {
         if (session) showApp();
     });
 }
 
-// --- SECURE LOGIN ---
 window.attemptLogin = async () => {
-    const email = document.getElementById('login-user').value.trim(); // Now assumes Email
+    const email = document.getElementById('login-user').value.trim(); 
     const pass = document.getElementById('login-pass').value.trim();
     const errorMsg = document.getElementById('login-error');
-    
-    // Simple helper: If user enters just "mountaintop", we assume a domain? 
-    // Or just require full email. Let's require full email for security.
     if(!email || !pass) { errorMsg.innerText = "Enter Email & Password"; errorMsg.classList.remove('hidden'); return; }
-
     errorMsg.classList.add('hidden');
-    
     const { data, error } = await db.auth.signInWithPassword({ email: email, password: pass });
-
     if (error) {
         log("Auth Error", error);
         errorMsg.innerText = "Invalid Credentials";
         errorMsg.classList.remove('hidden');
-    } else {
-        log("Login Success", data);
-        // showApp() is handled by onAuthStateChange above
     }
 };
 
@@ -148,13 +153,15 @@ function showApp() {
 // ============================================
 async function startSupabaseListener() {
     try {
-        // Now that RLS is on, this query will only return data if the user is authenticated!
         const { data, error } = await db.from('service_orders').select('*');
         if(error) throw error;
         soData = data || [];
         extractDynamicOptions();
         document.getElementById('loading-screen').classList.add('hidden');
-        window.switchTab('active');
+        
+        // ⚡ CHANGED: Default to 'pending' if there are pending items, otherwise 'active'
+        const hasPending = soData.some(i => i.status === 'pending');
+        window.switchTab(hasPending ? 'pending' : 'active');
 
         db.channel('custom-all-channel')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'service_orders' }, (payload) => {
@@ -169,8 +176,14 @@ async function startSupabaseListener() {
 }
 
 function extractDynamicOptions() {
-    DYNAMIC_TEAMS.clear(); DYNAMIC_AREAS.clear(); 
-    soData.forEach(item => { if(item.team) DYNAMIC_TEAMS.add(item.team); if(item.area) DYNAMIC_AREAS.add(item.area); });
+    // ⚡ FIX: Don't clear the Set completely. Re-initialize with defaults.
+    DYNAMIC_TEAMS = new Set(["Team Bernie", "Team Randy"]); 
+    DYNAMIC_AREAS.clear(); 
+    
+    soData.forEach(item => { 
+        if(item.team && item.team !== 'Unassigned') DYNAMIC_TEAMS.add(item.team); 
+        if(item.area) DYNAMIC_AREAS.add(item.area); 
+    });
     populateFilterDropdown('global-team-filter', DYNAMIC_TEAMS, "All Teams");
     populateFilterDropdown('global-area-filter', DYNAMIC_AREAS, "All Areas");
 }
@@ -187,21 +200,94 @@ function populateFilterDropdown(id, set, label) {
 // ============================================
 window.saveSO = async () => {
     if(!db) return alert("Database disconnected");
-    const id = document.getElementById('edit-id').value; const name = document.getElementById('input-name').value;
-    let team = document.getElementById('input-team').value; if (team === "NEW_ENTRY") team = document.getElementById('input-team-custom').value.trim();
-    let area = document.getElementById('input-area').value; if (area === "NEW_ENTRY") area = document.getElementById('input-area-custom').value.trim();
+    const id = document.getElementById('edit-id').value; 
+    const name = document.getElementById('input-name').value;
+    
+    let team = document.getElementById('input-team').value; 
+    if (team === "NEW_ENTRY") team = document.getElementById('input-team-custom').value.trim();
+    
+    let area = document.getElementById('input-area').value; 
+    if (area === "NEW_ENTRY") area = document.getElementById('input-area-custom').value.trim();
+    
     if(!name || !team || !area) return alert("All fields required");
-    const payload = { name, team, area, type: currentAppMode }; 
+    
+    // ⚡ THE FIX: Grab the remarks from the background card before saving
+    let remarksToSave = "";
+    if (id) {
+        const remInput = document.getElementById(`rem-${id}`);
+        if (remInput) {
+            remarksToSave = remInput.value;
+        } else {
+            // Fallback just in case the input isn't rendered
+            const existingItem = soData.find(i => i.id === id);
+            if (existingItem && existingItem.remarks) remarksToSave = existingItem.remarks;
+        }
+    }
+    
+    // Always force status to 'active' when Admin creates/edits manually
+    const payload = { name, team, area, type: currentAppMode, status: 'active' }; 
+    
+    // Attach remarks to the payload if they exist
+    if (remarksToSave !== "") {
+        payload.remarks = remarksToSave;
+    }
+
     try {
         if(!id) {
-            payload.id = crypto.randomUUID(); payload.status = 'active'; payload.dateAdded = new Date().toLocaleDateString(); payload.pic = false; payload.pwr = false; payload.speed = false; payload.rpt = false;
-            const { error } = await db.from('service_orders').insert([payload]); if(error) throw error; soData.push(payload); 
+            payload.id = crypto.randomUUID(); 
+            payload.dateAdded = new Date().toLocaleDateString(); 
+            payload.pic = false; 
+            payload.pwr = false; 
+            payload.speed = false; 
+            payload.rpt = false;
+            const { error } = await db.from('service_orders').insert([payload]); 
+            if(error) throw error; 
+            soData.push(payload); 
         } else {
-            const { error } = await db.from('service_orders').update(payload).eq('id', id); if(error) throw error;
-            const index = soData.findIndex(i => i.id === id); if(index !== -1) soData[index] = { ...soData[index], ...payload };
+            const { error } = await db.from('service_orders').update(payload).eq('id', id); 
+            if(error) throw error;
+            const index = soData.findIndex(i => i.id === id); 
+            if(index !== -1) soData[index] = { ...soData[index], ...payload };
         }
-        extractDynamicOptions(); render(false); toggleModal('form-modal');
-    } catch (e) { alert("Save Failed: " + e.message); }
+        extractDynamicOptions(); 
+        render(false); 
+        toggleModal('form-modal');
+    } catch (e) { 
+        alert("Save Failed: " + e.message); 
+    }
+}
+
+// ⚡ NEW: Approve function (Moves Pending -> Active)
+window.approveSO = async (id) => {
+    const item = soData.find(i => i.id === id);
+    if (!item) return;
+
+    // Validation: Don't allow "Unassigned" teams to be approved
+    if (item.team === "Unassigned" || !item.team) {
+        alert("⚠️ Please assign a valid Team before approving.");
+        openModal(id); // Open edit modal
+        return;
+    }
+
+    // Grab the value from the remarks input box right before we save
+    const remInput = document.getElementById(`rem-${id}`);
+    const currentRemarks = remInput ? remInput.value : (item.remarks || "");
+
+    try {
+        // Send BOTH the status change and the remarks to Supabase
+        await db.from('service_orders').update({ 
+            status: 'active', 
+            remarks: currentRemarks 
+        }).eq('id', id);
+        
+        // Optimistic update locally so the UI refreshes instantly
+        item.status = 'active';
+        item.remarks = currentRemarks;
+        
+        render(false);
+    } catch(e) { 
+        console.error("Approval Error:", e); 
+    }
 }
 
 window.deleteSO = async (id) => { if(!confirm("Delete this record permanently?")) return; try { const { error } = await db.from('service_orders').delete().eq('id', id); if(error) throw error; soData = soData.filter(i => i.id !== id); render(false); } catch (e) { alert("Delete Failed: " + e.message); } }
@@ -217,6 +303,14 @@ window.saveBulkSO = async () => { const rawText = document.getElementById('bulk-
 function render(resetLimit = false) {
     if(resetLimit) renderLimit = 50;
     
+    // ⚡ NEW: Update the Inbox Badge Count
+    const pendingCount = soData.filter(i => i.status === 'pending' && (i.type || 'SLR') === currentAppMode).length;
+    const badge = document.getElementById('badge-pending');
+    if(badge) {
+        badge.innerText = pendingCount;
+        badge.classList.toggle('hidden', pendingCount === 0);
+    }
+
     const dateInput = document.getElementById('global-date-filter').value;
     const teamFilter = document.getElementById('global-team-filter').value;
     const areaFilter = document.getElementById('global-area-filter').value;
@@ -256,7 +350,17 @@ function render(resetLimit = false) {
     });
 
     if(currentTab === 'performance') { renderPerformance(filtered); return; }
-    let listItems = currentTab === 'active' ? filtered.filter(i => i.status === 'active') : filtered.filter(i => i.status === 'done');
+
+    // ⚡ CHANGED: List Logic
+    let listItems = [];
+    if (currentTab === 'pending') {
+        listItems = filtered.filter(i => i.status === 'pending');
+    } else if (currentTab === 'active') {
+        listItems = filtered.filter(i => i.status === 'active');
+    } else {
+        listItems = filtered.filter(i => i.status === 'done');
+    }
+    
     renderList(listItems);
 }
 
@@ -267,13 +371,16 @@ function renderList(items) {
     document.getElementById('empty-msg').className = items.length === 0 ? "text-center py-16 text-gray-400" : "hidden";
     
     const groups = {};
-    items.forEach(item => { const dateKey = currentTab === 'active' ? item.dateAdded : (item.dateDone || "Unknown"); if(!groups[dateKey]) groups[dateKey] = []; groups[dateKey].push(item); });
+    items.forEach(item => { const dateKey = currentTab === 'active' ? item.dateAdded : (item.dateDone || "Pending Requests"); if(!groups[dateKey]) groups[dateKey] = []; groups[dateKey].push(item); });
     const sortedDates = Object.keys(groups).sort((a,b) => new Date(b) - new Date(a));
     
     let html = '';
     let count = 0;
     for(const date of sortedDates) {
-        html += `<div class="sticky-date py-2 px-1 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase flex justify-between items-center mt-4"><span><i class="fa-regular fa-calendar mr-1"></i> ${date}</span><span class="bg-gray-200 text-gray-600 px-2 rounded-full text-[10px]">${groups[date].length}</span></div>`;
+        // Hide date header if pending, looks cleaner
+        if (currentTab !== 'pending') {
+            html += `<div class="sticky-date py-2 px-1 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase flex justify-between items-center mt-4"><span><i class="fa-regular fa-calendar mr-1"></i> ${date}</span><span class="bg-gray-200 text-gray-600 px-2 rounded-full text-[10px]">${groups[date].length}</span></div>`;
+        }
         for(const item of groups[date]) {
             if(count >= renderLimit) break;
             html += createCardHTML(item);
@@ -288,24 +395,126 @@ function renderList(items) {
 
 function createCardHTML(item) {
     const isDone = item.status === 'done';
+    const isPending = item.status === 'pending';
     const isSLR = currentAppMode === 'SLR';
     const color = isSLR ? 'green' : 'indigo'; 
     const border = isSLR ? 'border-green-500' : 'border-indigo-500';
     const check = (val) => val ? 'checked' : '';
-    const actionBtn = isDone ? `<span class="text-xs font-bold text-${color}-600"><i class="fa-solid fa-check-double mr-1"></i>Completed</span>` : `<button onclick="markDone('${item.id}')" class="bg-${color}-600 hover:bg-${color}-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow uppercase tracking-wide transition flex items-center"><i class="fa-solid fa-check mr-1"></i> Done</button>`;
-    return `
-    <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 ${item.team && item.team.toLowerCase().includes('bernie') ? 'border-orange-400' : border} fade-in mb-3 dark-element">
-        <div class="flex justify-between items-start mb-2">
-            <div><span class="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded mb-1 inline-block border border-slate-200 dark-bg-sub dark-text dark-border">${item.area}</span><h3 class="font-bold text-gray-800 text-lg leading-tight dark-text">${item.name}</h3><p class="text-xs text-gray-500 font-bold mt-0.5 uppercase tracking-wide dark-text">${item.team}</p></div>
-            <div class="flex gap-1"><button onclick="openModal('${item.id}')" class="text-gray-300 hover:text-${color}-600 p-1"><i class="fa-solid fa-pen"></i></button><button onclick="deleteSO('${item.id}')" class="text-gray-300 hover:text-red-500 p-1"><i class="fa-solid fa-trash"></i></button></div>
+
+    // Action Button Logic (Animations removed)
+    let actionBtn = '';
+    if (isPending) {
+        actionBtn = `<button onclick="approveSO('${item.id}')" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow uppercase tracking-wide transition flex items-center"><i class="fa-solid fa-thumbs-up mr-1"></i> Accept</button>`;
+    } else if (isDone) {
+        actionBtn = `<span class="text-xs font-bold text-${color}-600"><i class="fa-solid fa-check-double mr-1"></i>Completed</span>`;
+    } else {
+        actionBtn = `<button onclick="markDone('${item.id}')" class="bg-${color}-600 hover:bg-${color}-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow uppercase tracking-wide transition flex items-center"><i class="fa-solid fa-check mr-1"></i> Done</button>`;
+    }
+
+    // Team color logic (Animations removed)
+    const teamColorClass = (isPending && item.team === 'Unassigned') ? 'text-red-500 font-extrabold' : 'text-gray-500 font-bold';
+    const borderColor = (isPending) ? 'border-yellow-400' : (item.team && item.team.toLowerCase().includes('bernie') ? 'border-orange-400' : border);
+
+    // Google Maps Link Logic
+    let mapElement = '';
+    let extraNote = '';
+
+    if (item.long_lat && item.long_lat.trim() !== '') {
+        const rawText = item.long_lat.trim();
+        const isCoordinate = /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/.test(rawText);
+
+        if (isCoordinate) {
+            const safeCoords = encodeURIComponent(rawText.replace(/\s/g, ''));
+            // Official Google Maps Directions API link
+            const mapUrl = `https://www.google.com/maps/dir/?api=1&destination=${safeCoords}`;
+            mapElement = `<a href="${mapUrl}" target="_blank" class="shrink-0 ml-2 bg-blue-100 hover:bg-blue-200 text-blue-700 text-[10px] px-2 py-1 rounded-md font-bold transition shadow-sm border border-blue-200"><i class="fa-solid fa-route mr-1"></i>ROUTE</a>`;
+        } else {
+            extraNote = `<div class="mt-1 text-slate-500 italic text-[10px]"><i class="fa-solid fa-thumbtack mr-1 text-slate-400"></i>Note: ${rawText}</div>`;
+        }
+    }
+
+    // Aging Calculator Logic (Animations removed)
+    let agingBadge = '';
+    let reportedDateDisplay = item.date_reported || 'Unknown Date';
+    
+    if (item.date_reported && !isDone) {
+        const rDate = new Date(item.date_reported);
+        const today = new Date();
+        const diffDays = Math.floor((today - rDate) / (1000 * 60 * 60 * 24));
+        
+        if (diffDays >= 2) {
+            agingBadge = `<span class="text-[9px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded shadow-sm border border-red-200">⚠️ ${diffDays} DAYS OLD</span>`;
+        } else if (diffDays === 1) {
+            agingBadge = `<span class="text-[9px] font-bold bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded shadow-sm border border-orange-200">1 DAY OLD</span>`;
+        }
+    }
+
+    const detailsBlock = `
+        <div class="mt-2 mb-3 p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-600 dark-bg-sub dark-text dark-border">
+            <div class="flex justify-between items-center border-b border-slate-200 pb-1.5 mb-1.5 dark-border">
+                <span class="font-bold text-slate-700 dark-text text-[11px]">
+                    <i class="fa-solid fa-ticket text-slate-400 mr-1"></i>${item.ticket_no || 'No Ticket'} 
+                    <span class="ml-1 font-mono text-slate-500 font-normal">(${item.account_no || 'No Acct'})</span>
+                </span>
+                
+                <div class="flex items-center gap-1">
+                    ${agingBadge}
+                    <span class="font-mono text-[9px] text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-100 dark-element dark-border" title="Date Reported">
+                        <i class="fa-regular fa-calendar mr-1"></i>${reportedDateDisplay}
+                    </span>
+                </div>
+            </div>
+            
+            <div class="flex justify-between items-center mb-1.5">
+                <div class="truncate font-medium flex-1" title="${item.address || ''}">
+                    <i class="fa-solid fa-location-dot mr-1.5 text-slate-400"></i>${item.address || 'No Address Provided'}
+                </div>
+                ${mapElement}
+            </div>
+            ${extraNote}
+            
+            <div class="flex items-center mt-1.5 mb-1.5">
+                <i class="fa-solid fa-phone mr-1.5 text-slate-400"></i>
+                <span class="font-medium">${item.contact_number || 'No Contact'}</span>
+            </div>
+            
+            ${item.trouble_report ? `
+            <div class="mt-2 pt-1.5 border-t border-slate-200 dark-border text-orange-600 font-bold flex items-start">
+                <i class="fa-solid fa-triangle-exclamation mt-0.5 mr-1.5"></i>
+                <span class="leading-tight">${item.trouble_report}</span>
+            </div>` : ''}
         </div>
+    `;
+
+    // Removed 'fade-in' class from the main div wrapper below
+    return `
+    <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 ${borderColor} mb-3 dark-element">
+        <div class="flex justify-between items-start mb-1">
+            <div>
+                <span class="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded mb-1 inline-block border border-slate-200 dark-bg-sub dark-text dark-border">${item.area}</span>
+                <h3 class="font-bold text-gray-800 text-lg leading-tight dark-text">${item.name}</h3>
+                <p class="text-xs ${teamColorClass} mt-0.5 uppercase tracking-wide dark-text">${item.team}</p>
+            </div>
+            <div class="flex gap-1">
+                <button onclick="openModal('${item.id}')" class="text-gray-300 hover:text-${color}-600 p-1"><i class="fa-solid fa-pen"></i></button>
+                <button onclick="deleteSO('${item.id}')" class="text-gray-300 hover:text-red-500 p-1"><i class="fa-solid fa-trash"></i></button>
+            </div>
+        </div>
+
+        ${detailsBlock} 
+        
+        ${!isPending ? `
         <div class="grid grid-cols-2 gap-2 mb-3 text-sm text-gray-600 bg-gray-50 p-2 rounded-lg dark-bg-sub dark-text">
             <label class="flex items-center space-x-2"><input type="checkbox" ${check(item.pic)} onclick="toggleCheck('${item.id}', 'pic')" ${isDone ? 'disabled' : ''} class="accent-${color}-600"><span>Trouble Pic</span></label>
             <label class="flex items-center space-x-2"><input type="checkbox" ${check(item.pwr)} onclick="toggleCheck('${item.id}', 'pwr')" ${isDone ? 'disabled' : ''} class="accent-${color}-600"><span>Optical Pwr</span></label>
             <label class="flex items-center space-x-2"><input type="checkbox" ${check(item.speed)} onclick="toggleCheck('${item.id}', 'speed')" ${isDone ? 'disabled' : ''} class="accent-${color}-600"><span>Speedtest</span></label>
             <label class="flex items-center space-x-2"><input type="checkbox" ${check(item.rpt)} onclick="toggleCheck('${item.id}', 'rpt')" ${isDone ? 'disabled' : ''} class="accent-${color}-600"><span>Service Rpt</span></label>
+        </div>` : ''}
+        
+        <div class="flex items-center justify-between gap-3">
+            <input type="text" id="rem-${item.id}" value="${item.remarks || ''}" ${isDone ? 'readonly' : ''} placeholder="Remarks..." class="flex-1 bg-white text-sm px-3 py-2 rounded border border-gray-200 focus:outline-none focus:border-${color}-500 dark-input">
+            ${actionBtn}
         </div>
-        <div class="flex items-center justify-between gap-3"><input type="text" id="rem-${item.id}" value="${item.remarks || ''}" ${isDone ? 'readonly' : ''} placeholder="Remarks..." class="flex-1 bg-white text-sm px-3 py-2 rounded border border-gray-200 focus:outline-none focus:border-${color}-500 dark-input">${actionBtn}</div>
     </div>`;
 }
 
@@ -332,7 +541,20 @@ window.openModal = (editId = null) => {
     document.getElementById('input-team-custom').classList.add('hidden'); document.getElementById('input-team-custom').value = ''; document.getElementById('input-area-custom').classList.add('hidden'); document.getElementById('input-area-custom').value = '';
     let editItem = null; if(editId) editItem = soData.find(i => i.id == editId);
     document.getElementById('input-team').innerHTML = buildOptions(DYNAMIC_TEAMS, editItem ? editItem.team : null); document.getElementById('input-area').innerHTML = buildOptions(DYNAMIC_AREAS, editItem ? editItem.area : null);
-    if(editItem) { document.getElementById('modal-title').innerText = "Edit Details"; document.getElementById('modal-btn').innerText = "Save Changes"; document.getElementById('edit-id').value = editId; document.getElementById('input-name').value = editItem.name; } else { document.getElementById('modal-title').innerText = "New Dispatch"; document.getElementById('modal-btn').innerText = "Confirm Dispatch"; document.getElementById('edit-id').value = ""; document.getElementById('input-name').value = ""; } 
+    
+    // ⚡ CHANGED: Button Text for context
+    const btn = document.getElementById('modal-btn');
+    if(editItem) { 
+        document.getElementById('modal-title').innerText = editItem.status === 'pending' ? "Assign Team" : "Edit Details"; 
+        btn.innerText = "Save Changes"; 
+        document.getElementById('edit-id').value = editId; 
+        document.getElementById('input-name').value = editItem.name; 
+    } else { 
+        document.getElementById('modal-title').innerText = "New Dispatch"; 
+        btn.innerText = "Confirm Dispatch"; 
+        document.getElementById('edit-id').value = ""; 
+        document.getElementById('input-name').value = ""; 
+    } 
     toggleModal('form-modal'); 
 }
 
