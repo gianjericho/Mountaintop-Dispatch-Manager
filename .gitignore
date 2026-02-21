@@ -1,1 +1,14 @@
 cypress.env.json
+# Dependency directories
+node_modules/
+
+# Mac OS system junk files
+.DS_Store
+
+# Security: Testing environment variables
+cypress.env.json
+cypress.env
+
+# Editor directories (optional, keeps repo clean if you use VS Code)
+.vscode/
+.idea/
