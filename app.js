@@ -4,9 +4,21 @@
 const DEBUG_MODE = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.protocol === "file:");
 function log(msg, data = null) { if (!DEBUG_MODE) return; const time = new Date().toLocaleTimeString(); if (data) console.log(`[${time}] 🔧 ${msg}`, data); else console.log(`[${time}] 🔧 ${msg}`); }
 
-const SUPABASE_URL = "https://qqrzlltwvvpowdigffsq.supabase.co"; 
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxcnpsbHR3dnZwb3dkaWdmZnNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzNTQ4MTUsImV4cCI6MjA4NTkzMDgxNX0.4C1CcwQ7BSx53Ofk284Mtc0TPxd3KoHfMR_qIm9WbZQ";
+// ⚡ THE FIX: Environment-Aware Database Keys
+let SUPABASE_URL = ""; 
+let SUPABASE_KEY = "";
 
+if (DEBUG_MODE) {
+    // 🧪 TEST ENVIRONMENT (Runs only on your Mac / localhost)
+    log("Running in TEST MODE connected to Sandbox DB");
+    SUPABASE_URL = "https://fqxturtabhbpgbizriss.supabase.co"; // <-- Paste Test URL here
+    SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxeHR1cnRhYmhicGdiaXpyaXNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2NTM5MzMsImV4cCI6MjA4NzIyOTkzM30.p9lIjSuiGRG84YlpXVe0B-rdd1-6tz4zU-uKzKjQNEQ";                // <-- Paste Test Key here
+} else {
+    // 🚨 PRODUCTION ENVIRONMENT (Runs only on Netlify / Live Web)
+    // DO NOT change these. These are your real, live database keys.
+    SUPABASE_URL = "https://qqrzlltwvvpowdigffsq.supabase.co"; 
+    SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxcnpsbHR3dnZwb3dkaWdmZnNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzNTQ4MTUsImV4cCI6MjA4NTkzMDgxNX0.4C1CcwQ7BSx53Ofk284Mtc0TPxd3KoHfMR_qIm9WbZQ";
+}
 // ============================================
 // 2. GLOBAL VARIABLES
 // ============================================
