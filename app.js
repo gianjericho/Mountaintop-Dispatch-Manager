@@ -107,32 +107,46 @@ window.exportCSV = () => {
 // ============================================
 // 5. SECURITY & AUTH
 // ============================================
+// ============================================
+// 5. SECURITY & AUTH
+// ============================================
 try {
     if (!window.supabase) console.error("Supabase SDK not loaded.");
     else { 
         db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); 
-        window.db = db; // ⚡ THE FIX: Explicitly hand the database to the window for Cypress
+        window.db = db; // Required for Cypress
         log("Supabase Client Initialized"); 
     }
 } catch (err) { console.error("Init Error:", err); }
 
-// List of emails allowed to use the app
-const ALLOWED_EMAILS = ["cypress@mountaintopcatv.com", "gianjerichoz@gmail.com", "jamendoza@mountaintopcatv.com", "jonangcaya@mountaintopcatv.com", "rvisco@mountaintopcatv.com", "ptiman@mountaintopcatv.com", "michaelvillena@mountaintopcatv.com", "jpgnibay@mountaintopcatv.com", "r.calucin@mountaintopcatv.com"];
+// ⚡ FIX: Hardcoded ALLOWED_EMAILS array is completely deleted!
+
+// Helper function to check if the user is in the Supabase VIP table
+async function verifyAndShowApp(userEmail) {
+    try {
+        // Query the secure table. RLS ensures they can only see their own row.
+        const { data, error } = await db.from('authorized_emails').select('email').eq('email', userEmail);
+        
+        if (data && data.length > 0) {
+            // User is on the list! Let them in.
+            showApp();
+        } else {
+            // User is not on the list. Kick them out.
+            console.warn("Unauthorized entry attempt by:", userEmail);
+            alert("Unauthorized Email Address: " + userEmail);
+            logout(); 
+        }
+    } catch (err) {
+        console.error("Verification error:", err);
+        logout();
+    }
+}
 
 if(db) {
     db.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_IN' && session) {
-            
-            // 🛡️ THE BOUNCER: Check if the Google email is on the VIP list
-            const userEmail = session.user.email;
-            if (ALLOWED_EMAILS.includes(userEmail)) {
-                showApp();
-            } else {
-                // Kick them out if not on the list
-                alert("Unauthorized Email Address: " + userEmail);
-                logout(); 
-            }
-
+            // Check database instead of hardcoded array
+            verifyAndShowApp(session.user.email);
         } else if (event === 'SIGNED_OUT') {
             document.getElementById('login-screen').classList.remove('hidden'); 
             document.getElementById('main-app').classList.add('hidden');
@@ -140,24 +154,20 @@ if(db) {
     });
     
     db.auth.getSession().then(({ data: { session } }) => {
-        if (session && ALLOWED_EMAILS.includes(session.user.email)) {
-            showApp();
+        if (session) {
+            // Check database instead of hardcoded array
+            verifyAndShowApp(session.user.email);
         }
     });
 }
 
-// ⚡ NEW: Google OAuth Login
 window.attemptGoogleLogin = async () => {
     const errorMsg = document.getElementById('login-error');
     errorMsg.classList.add('hidden');
 
-    // This tells Supabase to redirect to Google's secure login page
     const { data, error } = await db.auth.signInWithOAuth({
         provider: 'google',
-        options: {
-            // Automatically returns the user to wherever they are currently browsing (e.g., localhost or your live domain)
-            redirectTo: window.location.origin + window.location.pathname 
-        }
+        options: { redirectTo: window.location.origin + window.location.pathname }
     });
 
     if (error) {
