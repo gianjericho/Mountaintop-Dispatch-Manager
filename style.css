@@ -1,3 +1,16 @@
+body, 
+.dark-element, 
+.dark-bg-sub, 
+.dark-input, 
+.dark-border, 
+.dark-text, 
+.sticky-date,
+h1, h2, h3, h4, p, span, a, button, input, select, textarea, label {
+    transition-property: background-color, border-color, color, box-shadow;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 300ms;
+}
+
 /* GLOBAL STYLES */
 body { font-family: 'Inter', sans-serif; }
 

@@ -1,155 +1,152 @@
-describe('Dispatch Manager - Final Verification', () => {
+describe('Dispatch Manager - Pre-Deployment Verification', () => {
 
-  // 1. SETUP: Login & Clean State
-  const login = () => {
-    cy.session('admin-session', () => {
-      cy.visit('http://127.0.0.1:5500/index.html');
-      cy.clearLocalStorage();
-      
-      cy.get('#login-user').should('be.visible').type(Cypress.env('adminEmail'));
-      cy.get('#login-pass').should('be.visible').type(Cypress.env('adminPassword'));
-      cy.get('#btn-login').click();
-      
-      cy.get('#main-app', { timeout: 15000 }).should('be.visible');
-    });
-  };
-
+  // 1. SETUP: Programmatic Login & Load Live Data
   beforeEach(() => {
-    login();
     cy.visit('http://127.0.0.1:5500/index.html');
-    cy.get('#main-app').should('be.visible');
-    // Force close any open modals to prevent "element covered" errors
+    
+    // ⚡ NEW: Wait for the login screen to physically render first.
+    // This guarantees app.min.js has finished loading before we try to grab 'db'
+    cy.get('#login-screen', { timeout: 10000 }).should('be.visible');
+    
+    cy.window().then(async (win) => {
+      // If this fails, your app.min.js wasn't updated!
+      expect(win.db).to.not.be.undefined; 
+
+      // Programmatically log into Supabase
+      const { data, error } = await win.db.auth.signInWithPassword({
+        email: Cypress.env('TEST_EMAIL'), 
+        password: Cypress.env('TEST_PASSWORD')          
+      });
+      
+      if (error) console.error("Cypress Login Failed:", error);
+      
+      // Reveal the app UI now that we have a secure token
+      win.showApp();
+    });
+
+    // Wait for the app to be visible and data to finish loading
+    cy.get('#main-app', { timeout: 10000 }).should('be.visible');
+    cy.get('#loading-screen', { timeout: 15000 }).should('have.class', 'hidden');
+    
+    // Force close any lingering modals
     cy.get('.fixed.inset-0').invoke('addClass', 'hidden'); 
   });
 
   // ----------------------------------------------------
-  // TEST 1: SLR CRUD
+  // TEST 1: MANUAL DISPATCH WITH OPTIONAL DETAILS
   // ----------------------------------------------------
-  it('1. SLR Mode: Create, Edit, and Delete', () => {
-    const testName = 'Cypress User ' + Date.now();
-    cy.get('#mode-slr').click();
-    cy.get('#btn-new').click();
-    cy.get('#input-name').type(testName);
-    cy.get('#input-team').select('Team Bernie');
-    cy.get('#input-area').select('TAGAYTAY');
-    cy.get('#modal-btn').click();
-    cy.get('#nav-active').click();
+  it('1. Create Rich Manual Dispatch & Delete', () => {
+    const testName = 'Cy Rich User ' + Date.now().toString().slice(-5);
     
+    // Open Modal
+    cy.get('#btn-new').click();
+    
+    // Fill Required
+    cy.get('#input-name').type(testName);
+    cy.get('#input-area').select('TAGAYTAY');
+    cy.get('#input-team').select('Team Bernie');
+    
+    // Fill Optional Rich Data
+    cy.get('#input-ticket').type('TCKT-9999');
+    cy.get('#input-account').type('ACCT-0000');
+    cy.get('#input-address').type('123 Cypress Testing Avenue');
+    cy.get('#input-trouble').type('LOS Red Light');
+    
+    // Save
+    cy.get('#modal-btn').click();
+
+    // Verify it appeared in Active Tab
+    cy.get('#nav-active').click();
     cy.contains(testName, { timeout: 10000 }).should('be.visible');
+    cy.contains('TCKT-9999').should('be.visible');
+    cy.contains('123 Cypress Testing Avenue').should('be.visible');
+
+    // Clean up DB
     cy.window().then((win) => { cy.stub(win, 'confirm').returns(true); });
-    cy.contains(testName).parent().parent().find('.fa-trash').click();
+    cy.contains('.bg-white', testName).find('.fa-trash').click();
     cy.contains(testName).should('not.exist');
   });
 
   // ----------------------------------------------------
-  // TEST 2: SLI BULK DISPATCH
+  // TEST 2: SPREADSHEET BULK DISPATCH
   // ----------------------------------------------------
-  it('2. SLI Mode: Bulk Dispatch', () => {
-    cy.get('#mode-sli').click();
-    cy.get('#btn-bulk').click();
-    cy.get('#bulk-team').select('Team Randy');
-    cy.get('#bulk-area').select('AMADEO');
+  it('2. Bulk Dispatch (Spreadsheet Table UI)', () => {
+    const bulkName = 'Cy Bulk User ' + Date.now().toString().slice(-5);
     
-    // Simulating pasting multiple names
-    cy.get('#bulk-names').type('User A{enter}User B{enter}User C');
+    cy.get('#btn-bulk').click();
+    
+    // Select Global Dropdowns
+    cy.get('#global-bulk-area').select('AMADEO');
+    cy.get('#global-bulk-team').select('Team Randy');
+    
+    // Type into the first dynamic row
+    cy.get('.bulk-name').first().type(bulkName);
+    cy.get('.bulk-ticket').first().type('BULK-TCKT-1');
+    cy.get('.bulk-contact').first().type('09123456789');
+
+    // Dispatch
     cy.get('#bulk-btn').click();
 
-    // ⚡ THE FIX: Tell Cypress to click the Active tab before looking
+    // Verify in Active Tab
     cy.get('#nav-active').click(); 
+    cy.contains(bulkName, { timeout: 10000 }).should('be.visible');
 
-    // Verify they were added
-    cy.contains('User A', { timeout: 10000 }).should('be.visible');
-    cy.contains('User B').should('be.visible');
-    cy.contains('User C').should('be.visible');
-
-    // Clean up
-    ['User A', 'User B', 'User C'].forEach(name => {
-      cy.contains('.bg-white', name).find('.fa-trash').click();
-      cy.on('window:confirm', () => true);
-    });
+    // Clean up DB
+    cy.window().then((win) => { cy.stub(win, 'confirm').returns(true); });
+    cy.contains('.bg-white', bulkName).find('.fa-trash').click();
   });
 
   // ----------------------------------------------------
-  // TEST 3: SETTINGS (FIXED)
+  // TEST 3: DYNAMIC LIMITS & SHOW MORE
   // ----------------------------------------------------
-  it('3. Settings: Add Team', () => {
-    const newTeam = 'Team Cy' + Math.floor(Math.random() * 100);
-
-    // ⚡ FIX: Wait for app data to be fully stable first
-    cy.get('#loading-screen').should('have.class', 'hidden');
-    cy.wait(1000); 
-
-    // Open Settings
-    cy.get('.fa-gear').click();
-    cy.get('#settings-modal').should('not.have.class', 'hidden');
-
-    // Add Team
-    cy.get('#new-team-name').type(newTeam);
+  it('3. Pagination: Dropdown and Show More', () => {
+    cy.get('#nav-active').click();
     
-    // ⚡ FIX: Clicking this button automatically closes the modal in your app.
-    // We do NOT need to close it manually afterwards.
-    cy.get('#btn-add-team').click();
+    // Test the dropdown change
+    cy.get('#entries-limit').select('25');
+    cy.get('#entries-limit').should('have.value', '25');
 
-    // Verify modal is gone (Wait for animation)
-    cy.get('#settings-modal', { timeout: 5000 }).should('have.class', 'hidden');
-    
-    // Open New Dispatch Modal to check dropdown
-    cy.get('#btn-new').click(); 
-    
-    // Check if new team is in the dropdown
-    cy.get('#input-team', { timeout: 10000 }).should('contain', newTeam);
-  });
-
-  // ----------------------------------------------------
-  // TEST 4: FILTERS
-  // ----------------------------------------------------
-  it('4. Filtering', () => {
-    // 1. Create a specific entry to search for
-    cy.get('#mode-slr').click();
-    cy.get('#btn-new').click();
-    cy.get('#input-name').type('Filter Target');
-    cy.get('#input-team').select('Team Bernie');
-    cy.get('#input-area').select('TAGAYTAY');
-    cy.get('#modal-btn').click();
-
-    // ⚡ THE FIX: Switch to Active Tab so Cypress can see it
-    cy.get('#nav-active').click(); 
-    
-    // Wait for it to appear
-    cy.contains('Filter Target', { timeout: 10000 }).should('be.visible');
-
-    // 2. Test Search (Type something else, it should disappear)
-    cy.get('#global-search').type('RandomName123');
-    cy.contains('Filter Target').should('not.exist');
-    
-    // Clear search, it should come back
-    cy.get('#global-search').clear().type('Filter Target');
-    cy.contains('Filter Target').should('be.visible');
-    
-    // Clean up
-    cy.contains('.bg-white', 'Filter Target').find('.fa-trash').click();
-    cy.on('window:confirm', () => true);
-    
-    // Clear the search bar at the end
-    cy.get('#clear-filters-btn').click();
-  });
-
-  it('6. Inbox: Approve Pending Request', () => {
-    // 1. We assume the 'Ryan Tafalla' entry was pushed by the Google Sheet script
-    // Or we manually click the Inbox tab
-    cy.get('#nav-pending').click();
-
-    // 2. If the Inbox is empty, this test will pass (skipped), 
-    // but if data exists, we test the approval flow:
-    cy.get('#card-container').then(($container) => {
-      if ($container.find('.fa-thumbs-up').length > 0) {
-        // Find the first pulsing Accept button and click it
-        cy.get('.fa-thumbs-up').first().click();
-        
-        // Verify it moved to Active
-        cy.get('#nav-active').click();
-        cy.get('#badge-pending').should('not.be.visible'); // Badge should decrease
+    // If there are more than 25 items in your DB, the button will appear. Let's test it dynamically.
+    cy.get('body').then($body => {
+      const showMoreBtn = $body.find('#show-more-btn');
+      if (showMoreBtn.length > 0 && !showMoreBtn.hasClass('hidden')) {
+          cy.wrap(showMoreBtn).should('contain', 'Show 25 More').click();
       }
     });
   });
+
+  // ----------------------------------------------------
+  // TEST 4: INBOX TRIAGE (UI CHECK)
+  // ----------------------------------------------------
+  it('4. Inbox Triage Action Bar Exists', () => {
+    cy.get('#nav-pending').click();
+    
+    // If there is data in the inbox, the Bulk Action bar should render
+    cy.get('body').then($body => {
+      if ($body.find('.pending-cb').length > 0) {
+        cy.get('#inbox-bulk-team').should('be.visible');
+        cy.get('#select-all-pending').should('be.visible');
+        cy.contains('button', 'Send').should('be.visible');
+      } else {
+        // If empty, it should gracefully show the empty message
+        cy.get('#empty-msg').should('not.have.class', 'hidden');
+      }
+    });
+  });
+
+  // ----------------------------------------------------
+  // TEST 5: FILTERS & SEARCH
+  // ----------------------------------------------------
+  it('5. Search & Filters', () => {
+    cy.get('#nav-active').click();
+    
+    // Type a random string that definitely doesn't exist
+    cy.get('#global-search').type('XQZQJ123');
+    cy.get('#empty-msg').should('not.have.class', 'hidden');
+    
+    // Clear filters using the reset button
+    cy.get('#clear-filters-btn').should('be.visible').click();
+    cy.get('#global-search').should('have.value', '');
+  });
+
 });

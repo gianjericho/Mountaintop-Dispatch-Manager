@@ -48,8 +48,8 @@ window.switchAppMode = (mode) => {
     if(btnSLR) btnSLR.className = isSLR ? "bg-white shadow text-green-700 px-4 py-1 rounded-md text-xs font-bold transition" : "px-4 py-1 rounded-md text-xs font-bold transition text-gray-400 hover:text-gray-600";
     if(btnSLI) btnSLI.className = !isSLR ? "bg-white shadow text-indigo-700 px-4 py-1 rounded-md text-xs font-bold transition" : "px-4 py-1 rounded-md text-xs font-bold transition text-gray-400 hover:text-gray-600";
     
-    const primaryColor = isSLR ? 'bg-green-600' : 'bg-indigo-600'; const hoverColor = isSLR ? 'hover:bg-green-700' : 'hover:bg-indigo-700'; const shadowColor = isSLR ? 'shadow-green-200' : 'shadow-indigo-200'; const perfBg = isSLR ? 'bg-slate-800' : 'bg-indigo-900'; 
-    const els = { 'btn-new': `${primaryColor} text-white px-3 py-1 rounded-lg text-sm font-bold ${hoverColor} shadow-lg ${shadowColor} transition`, 'modal-btn': `w-full ${primaryColor} text-white py-3 rounded-xl font-bold shadow-lg ${hoverColor} transition mt-2`, 'bulk-btn': `w-full ${primaryColor} text-white py-3 rounded-xl font-bold shadow-lg ${hoverColor} transition mt-2`, 'btn-add-team': `${primaryColor} text-white px-3 py-2 rounded-lg font-bold text-xs ${hoverColor} transition` };
+    const primaryColor = isSLR ? 'bg-green-600' : 'bg-indigo-600'; const hoverColor = isSLR ? 'hover:bg-green-700' : 'hover:bg-indigo-700'; const shadowColor = isSLR ? 'shadow-green-600/30' : 'shadow-indigo-600/30'; const perfBg = isSLR ? 'bg-slate-800' : 'bg-indigo-900'; 
+    const els = { 'btn-new': `${primaryColor} text-white px-3 py-1 rounded-lg text-sm font-bold ${hoverColor} shadow-md ${shadowColor} transition`, 'modal-btn': `w-full ${primaryColor} text-white py-3 rounded-xl font-bold shadow-md ${hoverColor} transition mt-2`, 'bulk-btn': `w-full ${primaryColor} text-white py-3 rounded-xl font-bold shadow-md ${hoverColor} transition mt-2`, 'btn-add-team': `${primaryColor} text-white px-3 py-2 rounded-lg font-bold text-xs ${hoverColor} transition` };
     for (const [id, cls] of Object.entries(els)) { const el = document.getElementById(id); if(el) el.className = cls; }
     
     const perfCard = document.getElementById('perf-card'); if(perfCard) perfCard.className = `${perfBg} text-white rounded-2xl p-5 shadow-xl relative overflow-hidden transition-colors duration-500`;
@@ -61,7 +61,10 @@ window.switchAppMode = (mode) => {
 
 // ⚡ CHANGED: Added 'pending' tab logic
 window.switchTab = (tab) => {
-    currentTab = tab; renderLimit = 50;
+    currentTab = tab; 
+    const limitEl = document.getElementById('entries-limit');
+    renderLimit = limitEl ? parseInt(limitEl.value) : 50;
+    
     ['pending', 'active', 'history', 'performance'].forEach(t => { 
         const el = document.getElementById(`nav-${t}`); 
         if(el) el.className = t === tab ? "flex-1 py-3 text-center text-sm nav-active" : "flex-1 py-3 text-center text-sm nav-item relative"; 
@@ -106,33 +109,60 @@ window.exportCSV = () => {
 // ============================================
 try {
     if (!window.supabase) console.error("Supabase SDK not loaded.");
-    else { db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); log("Supabase Client Initialized"); }
+    else { 
+        db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); 
+        window.db = db; // ⚡ THE FIX: Explicitly hand the database to the window for Cypress
+        log("Supabase Client Initialized"); 
+    }
 } catch (err) { console.error("Init Error:", err); }
+
+// List of emails allowed to use the app
+const ALLOWED_EMAILS = ["cypress@mountaintopcatv.com", "gianjerichoz@gmail.com", "jamendoza@mountaintopcatv.com", "jonangcaya@mountaintopcatv.com", "rvisco@mountaintopcatv.com", "ptiman@mountaintopcatv.com", "michaelvillena@mountaintopcatv.com", "jpgnibay@mountaintopcatv.com", "r.calucin@mountaintopcatv.com"];
 
 if(db) {
     db.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_IN' && session) {
-            showApp();
+            
+            // 🛡️ THE BOUNCER: Check if the Google email is on the VIP list
+            const userEmail = session.user.email;
+            if (ALLOWED_EMAILS.includes(userEmail)) {
+                showApp();
+            } else {
+                // Kick them out if not on the list
+                alert("Unauthorized Email Address: " + userEmail);
+                logout(); 
+            }
+
         } else if (event === 'SIGNED_OUT') {
             document.getElementById('login-screen').classList.remove('hidden'); 
             document.getElementById('main-app').classList.add('hidden');
         }
     });
+    
     db.auth.getSession().then(({ data: { session } }) => {
-        if (session) showApp();
+        if (session && ALLOWED_EMAILS.includes(session.user.email)) {
+            showApp();
+        }
     });
 }
 
-window.attemptLogin = async () => {
-    const email = document.getElementById('login-user').value.trim(); 
-    const pass = document.getElementById('login-pass').value.trim();
+// ⚡ NEW: Google OAuth Login
+window.attemptGoogleLogin = async () => {
     const errorMsg = document.getElementById('login-error');
-    if(!email || !pass) { errorMsg.innerText = "Enter Email & Password"; errorMsg.classList.remove('hidden'); return; }
     errorMsg.classList.add('hidden');
-    const { data, error } = await db.auth.signInWithPassword({ email: email, password: pass });
+
+    // This tells Supabase to redirect to Google's secure login page
+    const { data, error } = await db.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+            // Automatically returns the user to wherever they are currently browsing (e.g., localhost or your live domain)
+            redirectTo: window.location.origin + window.location.pathname 
+        }
+    });
+
     if (error) {
         log("Auth Error", error);
-        errorMsg.innerText = "Invalid Credentials";
+        errorMsg.innerText = "Login Failed: " + error.message;
         errorMsg.classList.remove('hidden');
     }
 };
@@ -174,16 +204,16 @@ async function startSupabaseListener() {
         .subscribe();
     } catch (err) { console.error("Data Error:", err); }
 }
-
 function extractDynamicOptions() {
-    // ⚡ FIX: Don't clear the Set completely. Re-initialize with defaults.
+    // ⚡ THE FIX: Re-initialize BOTH Sets with their default values so they never disappear!
     DYNAMIC_TEAMS = new Set(["Team Bernie", "Team Randy"]); 
-    DYNAMIC_AREAS.clear(); 
+    DYNAMIC_AREAS = new Set(["TAGAYTAY", "AMADEO", "MENDEZ", "BAILEN", "MARAGONDON", "ALFONSO", "MAGALLANES", "INDANG"]); 
     
     soData.forEach(item => { 
         if(item.team && item.team !== 'Unassigned') DYNAMIC_TEAMS.add(item.team); 
-        if(item.area) DYNAMIC_AREAS.add(item.area); 
+        if(item.area && item.area !== 'Unknown') DYNAMIC_AREAS.add(item.area); 
     });
+    
     populateFilterDropdown('global-team-filter', DYNAMIC_TEAMS, "All Teams");
     populateFilterDropdown('global-area-filter', DYNAMIC_AREAS, "All Areas");
 }
@@ -211,23 +241,33 @@ window.saveSO = async () => {
     
     if(!name || !team || !area) return alert("All fields required");
     
-    // ⚡ THE FIX: Grab the remarks from the background card before saving
     let remarksToSave = "";
     if (id) {
         const remInput = document.getElementById(`rem-${id}`);
         if (remInput) {
             remarksToSave = remInput.value;
         } else {
-            // Fallback just in case the input isn't rendered
             const existingItem = soData.find(i => i.id === id);
             if (existingItem && existingItem.remarks) remarksToSave = existingItem.remarks;
         }
     }
     
-    // Always force status to 'active' when Admin creates/edits manually
-    const payload = { name, team, area, type: currentAppMode, status: 'active' }; 
+    // ⚡ THE FIX: Grab all the new additional details from the inputs
+    const payload = { 
+        name, 
+        team, 
+        area, 
+        type: currentAppMode, 
+        status: 'active',
+        ticket_no: document.getElementById('input-ticket').value.trim(),
+        account_no: document.getElementById('input-account').value.trim(),
+        contact_number: document.getElementById('input-contact').value.trim(),
+        facility: document.getElementById('input-facility').value.trim(),
+        address: document.getElementById('input-address').value.trim(),
+        trouble_report: document.getElementById('input-trouble').value.trim(),
+        long_lat: document.getElementById('input-longlat').value.trim()
+    }; 
     
-    // Attach remarks to the payload if they exist
     if (remarksToSave !== "") {
         payload.remarks = remarksToSave;
     }
@@ -235,11 +275,14 @@ window.saveSO = async () => {
     try {
         if(!id) {
             payload.id = crypto.randomUUID(); 
-            payload.dateAdded = new Date().toLocaleDateString(); 
+            const todayStr = new Date().toLocaleDateString();
+            payload.dateAdded = todayStr; 
+            payload.date_reported = todayStr; // Auto-stamp reported date for manual entries
             payload.pic = false; 
             payload.pwr = false; 
             payload.speed = false; 
             payload.rpt = false;
+            
             const { error } = await db.from('service_orders').insert([payload]); 
             if(error) throw error; 
             soData.push(payload); 
@@ -272,17 +315,20 @@ window.approveSO = async (id) => {
     // Grab the value from the remarks input box right before we save
     const remInput = document.getElementById(`rem-${id}`);
     const currentRemarks = remInput ? remInput.value : (item.remarks || "");
+    const todayStr = new Date().toLocaleDateString(); // ⚡ FIX: Get today's date
 
     try {
-        // Send BOTH the status change and the remarks to Supabase
+        // Send status, remarks, AND the fresh dispatch date to Supabase
         await db.from('service_orders').update({ 
             status: 'active', 
-            remarks: currentRemarks 
+            remarks: currentRemarks,
+            dateAdded: todayStr // ⚡ FIX: Stamp the date it was actually dispatched
         }).eq('id', id);
         
-        // Optimistic update locally so the UI refreshes instantly
+        // Optimistic update locally
         item.status = 'active';
         item.remarks = currentRemarks;
+        item.dateAdded = todayStr; // ⚡ FIX: Update local UI state
         
         render(false);
     } catch(e) { 
@@ -295,15 +341,133 @@ window.renameTeam = async (oldName) => { const newName = prompt(`Rename "${oldNa
 window.deleteTeam = async (teamName) => { if(!confirm(`Delete ALL records for "${teamName}"?`)) return; try { const { error } = await db.from('service_orders').delete().eq('team', teamName); if(error) throw error; soData = soData.filter(item => item.team !== teamName); extractDynamicOptions(); render(false); toggleSettings(); } catch (e) { alert("Delete Failed: " + e.message); } }
 window.markDone = async (id) => { const itemIndex = soData.findIndex(i => i.id == id); if(itemIndex === -1) return; const rem = document.getElementById(`rem-${id}`).value || soData[itemIndex].remarks || ""; const dateDone = new Date().toLocaleDateString(); try { await db.from('service_orders').update({ status: 'done', remarks: rem, dateDone: dateDone }).eq('id', id); soData[itemIndex].status = 'done'; soData[itemIndex].remarks = rem; soData[itemIndex].dateDone = dateDone; render(false); } catch(e) { console.error(e); } }
 window.toggleCheck = async (id, key) => { const index = soData.findIndex(i => i.id == id); if(index === -1) return; const newVal = !soData[index][key]; soData[index][key] = newVal; render(false); const updateObj = {}; updateObj[key] = newVal; await db.from('service_orders').update(updateObj).eq('id', id); }
-window.saveBulkSO = async () => { const rawText = document.getElementById('bulk-names').value; let team = document.getElementById('bulk-team').value; let area = document.getElementById('bulk-area').value; if(team === "NEW_ENTRY" || area === "NEW_ENTRY") return alert("Please select an existing Team/Area for Bulk."); const names = rawText.split(/\r?\n/).map(n => n.trim()).filter(n => n.length > 0); if(names.length === 0) return alert("No names entered"); const rows = names.map(name => ({ id: crypto.randomUUID(), name, team, area, type: currentAppMode, status: 'active', dateAdded: new Date().toLocaleDateString(), pic: false, pwr: false, speed: false, rpt: false })); document.getElementById('bulk-btn').innerText = "Processing..."; try { const { error } = await db.from('service_orders').insert(rows); if(error) throw error; soData.push(...rows); render(false); toggleModal('bulk-modal'); document.getElementById('bulk-btn').innerText = "Dispatch All"; } catch (e) { alert("Bulk Error: " + e.message); document.getElementById('bulk-btn').innerText = "Dispatch All"; } }
+document.addEventListener('paste', function(e) {
+    // Only intercept if pasting inside the bulk table
+    if (!e.target.closest('#bulk-table-body')) return;
+    
+    const pasteData = (e.clipboardData || window.clipboardData).getData('text');
+    if (!pasteData) return;
+    
+    // Check if it's multi-cell data (contains a tab or a newline)
+    if (pasteData.indexOf('\t') === -1 && pasteData.indexOf('\n') === -1) return; // Standard single-word paste, let browser handle it naturally
+    
+    e.preventDefault(); // Stop standard pasting
+
+    // Split clipboard into rows, remove trailing empty row if present
+    const rows = pasteData.split(/\r?\n/);
+    if(rows.length > 0 && rows[rows.length - 1] === "") rows.pop();
+
+    const targetInput = e.target;
+    const startTd = targetInput.closest('td');
+    const startTr = startTd.closest('tr');
+    const tbody = document.getElementById('bulk-table-body');
+    
+    // Calculate where to start placing data
+    const startColIdx = Array.from(startTr.children).indexOf(startTd);
+    const startRowIdx = Array.from(tbody.children).indexOf(startTr);
+    
+    rows.forEach((rowData, rIdx) => {
+        const cols = rowData.split('\t'); // Split row by Tabs (Excel formatting)
+        const currentRowIdx = startRowIdx + rIdx;
+        
+        // If we run out of rows while pasting, automatically create new ones!
+        while (tbody.children.length <= currentRowIdx) {
+            window.addBulkRow();
+        }
+        
+        const tr = tbody.children[currentRowIdx];
+        
+        cols.forEach((cellData, cIdx) => {
+            const currentColIdx = startColIdx + cIdx;
+            // Ensure we don't paste past the 5th column (the delete button)
+            if (currentColIdx < 5) {
+                const input = tr.children[currentColIdx].querySelector('input');
+                if (input) {
+                    input.value = cellData.trim();
+                }
+            }
+        });
+    });
+});
+
+window.saveBulkSO = async () => { 
+    // ⚡ Grab Team and Area globally
+    const team = document.getElementById('global-bulk-team').value; 
+    const area = document.getElementById('global-bulk-area').value; 
+
+    if(!area || area === "NEW_ENTRY") return alert("⚠️ Please select an Area."); 
+    if(!team || team === "NEW_ENTRY") return alert("⚠️ Please select a Team."); 
+    
+    const rows = document.querySelectorAll('.bulk-row');
+    const payload = [];
+    const todayStr = new Date().toLocaleDateString();
+    let hasError = false;
+
+    rows.forEach(row => {
+        const name = row.querySelector('.bulk-name').value.trim();
+        const ticket = row.querySelector('.bulk-ticket').value.trim();
+        const acct = row.querySelector('.bulk-acct').value.trim();
+        const contact = row.querySelector('.bulk-contact').value.trim();
+        const address = row.querySelector('.bulk-address').value.trim();
+
+        // Skip completely empty rows
+        if (!name && !ticket && !acct && !contact && !address) return;
+
+        // Ensure required Name field is filled
+        if (!name) {
+            hasError = true;
+            row.querySelector('.bulk-name').classList.add('border-red-500', 'bg-red-50');
+            return;
+        } else {
+            row.querySelector('.bulk-name').classList.remove('border-red-500', 'bg-red-50');
+        }
+
+        payload.push({ 
+            id: crypto.randomUUID(), 
+            name: name, 
+            team: team,   // From global dropdown
+            area: area,   // From global dropdown
+            type: currentAppMode, 
+            status: 'active', 
+            dateAdded: todayStr,
+            date_reported: todayStr, 
+            ticket_no: ticket,
+            account_no: acct,
+            contact_number: contact,
+            address: address,
+            pic: false, pwr: false, speed: false, rpt: false 
+        });
+    });
+
+    if (hasError) return alert("⚠️ Please provide a Subscriber Name for all active rows (or click the trash can to delete the row).");
+    if (payload.length === 0) return alert("⚠️ No data entered to dispatch.");
+
+    document.getElementById('bulk-btn').innerText = "Processing Data..."; 
+    
+    try { 
+        const { error } = await db.from('service_orders').insert(payload); 
+        if(error) throw error; 
+        
+        soData.push(...payload); 
+        render(false); 
+        toggleModal('bulk-modal'); 
+        
+        document.getElementById('bulk-btn').innerText = "Dispatch All Rows"; 
+    } catch (e) { 
+        alert("Bulk Error: " + e.message); 
+        document.getElementById('bulk-btn').innerText = "Dispatch All Rows"; 
+    } 
+}
 
 // ============================================
 // 8. RENDER LOGIC
 // ============================================
 function render(resetLimit = false) {
-    if(resetLimit) renderLimit = 50;
+        if (resetLimit) {
+        const limitEl = document.getElementById('entries-limit');
+        renderLimit = limitEl ? parseInt(limitEl.value) : 50;
+    }
     
-    // ⚡ NEW: Update the Inbox Badge Count
     const pendingCount = soData.filter(i => i.status === 'pending' && (i.type || 'SLR') === currentAppMode).length;
     const badge = document.getElementById('badge-pending');
     if(badge) {
@@ -333,10 +497,24 @@ function render(resetLimit = false) {
         if(teamFilter && item.team !== teamFilter) return false;
         if(areaFilter && item.area !== areaFilter) return false;
         
+        // ⚡ UPGRADED DATE FILTER LOGIC
         if(selectedDate) {
-            const itemDate = item.status === 'active' ? item.dateAdded : item.dateDone;
-            return isSameDay(itemDate, selectedDate);
+            let itemDateToCompare = null;
+            
+            if (currentTab === 'pending') {
+                // If in Inbox, filter by the Google Sheet date
+                itemDateToCompare = item.date_reported; 
+            } else if (currentTab === 'active') {
+                // If in Dispatch, filter by the day it was accepted/created
+                itemDateToCompare = item.dateAdded;
+            } else {
+                // If in History, filter by the day it was completed
+                itemDateToCompare = item.dateDone;
+            }
+            
+            return isSameDay(itemDateToCompare, selectedDate);
         }
+        
         if(currentTab === 'performance' && !selectedDate && !searchInput) {
             const now = new Date();
             const d = new Date(item.dateAdded); 
@@ -349,7 +527,10 @@ function render(resetLimit = false) {
         return true;
     });
 
-    if(currentTab === 'performance') { renderPerformance(filtered); return; }
+    if(currentTab === 'performance') { 
+        renderPerformance(filtered.filter(i => i.status !== 'pending')); 
+        return; 
+    }
 
     // ⚡ CHANGED: List Logic
     let listItems = [];
@@ -370,6 +551,28 @@ function renderList(items) {
     document.getElementById('list-count').innerText = items.length;
     document.getElementById('empty-msg').className = items.length === 0 ? "text-center py-16 text-gray-400" : "hidden";
     
+    // ⚡ NEW: Generate the Bulk Action Bar for the Inbox
+    let bulkBar = '';
+    if (currentTab === 'pending' && items.length > 0) {
+        // Build team dropdown excluding 'Unassigned'
+        let teamOptions = `<option value="" disabled selected>Assign team to selected...</option>`;
+        [...DYNAMIC_TEAMS].sort().forEach(t => teamOptions += `<option value="${t}">${t}</option>`);
+        
+        bulkBar = `
+        <div class="bg-blue-50 border border-blue-200 p-3 rounded-xl mb-4 flex gap-3 items-center dark-bg-sub dark-border shadow-sm">
+            <div class="flex flex-col items-center justify-center shrink-0">
+                <input type="checkbox" id="select-all-pending" onchange="toggleAllPending(this)" class="w-5 h-5 accent-blue-600 cursor-pointer rounded">
+                <label class="text-[8px] font-bold text-blue-600 mt-1 uppercase">All</label>
+            </div>
+            <select id="inbox-bulk-team" class="flex-1 p-2.5 rounded-lg border border-blue-200 text-sm outline-none dark-input font-bold text-slate-700 cursor-pointer">
+                ${teamOptions}
+            </select>
+            <button onclick="bulkApprovePending()" class="bg-blue-600 text-white px-4 py-2.5 rounded-lg font-bold text-sm shadow-md hover:bg-blue-700 transition shrink-0 uppercase tracking-wide">
+                <i class="fa-solid fa-paper-plane mr-1"></i> Send
+            </button>
+        </div>`;
+    }
+
     const groups = {};
     items.forEach(item => { const dateKey = currentTab === 'active' ? item.dateAdded : (item.dateDone || "Pending Requests"); if(!groups[dateKey]) groups[dateKey] = []; groups[dateKey].push(item); });
     const sortedDates = Object.keys(groups).sort((a,b) => new Date(b) - new Date(a));
@@ -377,7 +580,6 @@ function renderList(items) {
     let html = '';
     let count = 0;
     for(const date of sortedDates) {
-        // Hide date header if pending, looks cleaner
         if (currentTab !== 'pending') {
             html += `<div class="sticky-date py-2 px-1 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase flex justify-between items-center mt-4"><span><i class="fa-regular fa-calendar mr-1"></i> ${date}</span><span class="bg-gray-200 text-gray-600 px-2 rounded-full text-[10px]">${groups[date].length}</span></div>`;
         }
@@ -388,9 +590,23 @@ function renderList(items) {
         }
         if(count >= renderLimit) break;
     }
-    container.innerHTML = html;
+    
+    // ⚡ Inject the Bulk Bar at the top of the cards
+    container.innerHTML = bulkBar + html;
     const btn = document.getElementById('show-more-btn');
-    if(btn) { if(items.length > renderLimit) { btn.classList.remove('hidden'); btn.innerText = `Show More (${items.length - renderLimit} remaining)`; } else { btn.classList.add('hidden'); } }
+    if(btn) { 
+        if(items.length > renderLimit) { 
+            const step = parseInt(document.getElementById('entries-limit').value);
+            const remaining = items.length - renderLimit;
+            // Tell the user exactly what will happen
+            const nextLoad = remaining < step ? remaining : step;
+            
+            btn.classList.remove('hidden'); 
+            btn.innerText = `Show ${nextLoad} More (${remaining} left)`; 
+        } else { 
+            btn.classList.add('hidden'); 
+        } 
+    }
 }
 
 function createCardHTML(item) {
@@ -490,12 +706,15 @@ function createCardHTML(item) {
     return `
     <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 ${borderColor} mb-3 dark-element">
         <div class="flex justify-between items-start mb-1">
-            <div>
-                <span class="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded mb-1 inline-block border border-slate-200 dark-bg-sub dark-text dark-border">${item.area}</span>
-                <h3 class="font-bold text-gray-800 text-lg leading-tight dark-text">${item.name}</h3>
-                <p class="text-xs ${teamColorClass} mt-0.5 uppercase tracking-wide dark-text">${item.team}</p>
+            <div class="flex items-start gap-2">
+                ${isPending ? `<input type="checkbox" class="pending-cb w-4 h-4 mt-0.5 accent-blue-600 cursor-pointer rounded" value="${item.id}">` : ''}
+                <div>
+                    <span class="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded mb-1 inline-block border border-slate-200 dark-bg-sub dark-text dark-border">${item.area}</span>
+                    <h3 class="font-bold text-gray-800 text-lg leading-tight dark-text">${item.name}</h3>
+                    <p class="text-xs ${teamColorClass} mt-0.5 uppercase tracking-wide dark-text">${item.team}</p>
+                </div>
             </div>
-            <div class="flex gap-1">
+            <div class="flex gap-1 shrink-0">
                 <button onclick="openModal('${item.id}')" class="text-gray-300 hover:text-${color}-600 p-1"><i class="fa-solid fa-pen"></i></button>
                 <button onclick="deleteSO('${item.id}')" class="text-gray-300 hover:text-red-500 p-1"><i class="fa-solid fa-trash"></i></button>
             </div>
@@ -538,28 +757,150 @@ window.openModal = (editId = null) => {
     if(!document.getElementById('input-team-custom')) { teamContainer.innerHTML += `<input type="text" id="input-team-custom" placeholder="Enter New Team Name" class="hidden w-full border border-blue-300 bg-blue-50 rounded-lg p-2.5 mt-2 outline-none fade-in dark-input">`; document.getElementById('input-team').setAttribute('onchange', "handleDropdownChange('team')"); }
     const areaContainer = document.getElementById('input-area').parentNode;
     if(!document.getElementById('input-area-custom')) { areaContainer.innerHTML += `<input type="text" id="input-area-custom" placeholder="Enter New Area Name" class="hidden w-full border border-blue-300 bg-blue-50 rounded-lg p-2.5 mt-2 outline-none fade-in dark-input">`; document.getElementById('input-area').setAttribute('onchange', "handleDropdownChange('area')"); }
-    document.getElementById('input-team-custom').classList.add('hidden'); document.getElementById('input-team-custom').value = ''; document.getElementById('input-area-custom').classList.add('hidden'); document.getElementById('input-area-custom').value = '';
-    let editItem = null; if(editId) editItem = soData.find(i => i.id == editId);
-    document.getElementById('input-team').innerHTML = buildOptions(DYNAMIC_TEAMS, editItem ? editItem.team : null); document.getElementById('input-area').innerHTML = buildOptions(DYNAMIC_AREAS, editItem ? editItem.area : null);
     
-    // ⚡ CHANGED: Button Text for context
+    document.getElementById('input-team-custom').classList.add('hidden'); 
+    document.getElementById('input-team-custom').value = ''; 
+    document.getElementById('input-area-custom').classList.add('hidden'); 
+    document.getElementById('input-area-custom').value = '';
+    
+    let editItem = null; 
+    if(editId) editItem = soData.find(i => i.id == editId);
+    
+    document.getElementById('input-team').innerHTML = buildOptions(DYNAMIC_TEAMS, editItem ? editItem.team : null); 
+    document.getElementById('input-area').innerHTML = buildOptions(DYNAMIC_AREAS, editItem ? editItem.area : null);
+    
     const btn = document.getElementById('modal-btn');
+    
     if(editItem) { 
+        // ⚡ EDIT MODE: Load existing data into the form
         document.getElementById('modal-title').innerText = editItem.status === 'pending' ? "Assign Team" : "Edit Details"; 
         btn.innerText = "Save Changes"; 
         document.getElementById('edit-id').value = editId; 
         document.getElementById('input-name').value = editItem.name; 
+        
+        document.getElementById('input-ticket').value = editItem.ticket_no || "";
+        document.getElementById('input-account').value = editItem.account_no || "";
+        document.getElementById('input-contact').value = editItem.contact_number || "";
+        document.getElementById('input-facility').value = editItem.facility || "";
+        document.getElementById('input-address').value = editItem.address || "";
+        document.getElementById('input-trouble').value = editItem.trouble_report || "";
+        document.getElementById('input-longlat').value = editItem.long_lat || "";
     } else { 
+        // ⚡ NEW DISPATCH MODE: Clear all fields
         document.getElementById('modal-title').innerText = "New Dispatch"; 
         btn.innerText = "Confirm Dispatch"; 
         document.getElementById('edit-id').value = ""; 
         document.getElementById('input-name').value = ""; 
+        
+        document.getElementById('input-ticket').value = "";
+        document.getElementById('input-account').value = "";
+        document.getElementById('input-contact').value = "";
+        document.getElementById('input-facility').value = "";
+        document.getElementById('input-address').value = "";
+        document.getElementById('input-trouble').value = "";
+        document.getElementById('input-longlat').value = "";
     } 
     toggleModal('form-modal'); 
 }
 
-window.openBulkModal = () => { document.getElementById('bulk-team').innerHTML = buildOptions(DYNAMIC_TEAMS, null); document.getElementById('bulk-area').innerHTML = buildOptions(DYNAMIC_AREAS, null); document.getElementById('bulk-names').value = ''; document.getElementById('bulk-btn').innerText = 'Dispatch All'; toggleModal('bulk-modal'); }
+window.openBulkModal = () => { 
+    // Load Global Dropdowns
+    document.getElementById('global-bulk-team').innerHTML = buildOptions(DYNAMIC_TEAMS, null); 
+    document.getElementById('global-bulk-area').innerHTML = buildOptions(DYNAMIC_AREAS, null); 
+    
+    // Clear old table rows and inject default rows
+    const tbody = document.getElementById('bulk-table-body');
+    tbody.innerHTML = '';
+    for(let i=0; i<5; i++) { window.addBulkRow(); }
+    
+    document.getElementById('bulk-btn').innerText = 'Dispatch All Rows'; 
+    toggleModal('bulk-modal'); 
+}
+
+window.addBulkRow = () => {
+    const tbody = document.getElementById('bulk-table-body');
+    const tr = document.createElement('tr');
+    tr.className = 'border-b border-gray-100 dark-border hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors bulk-row bg-white dark:bg-slate-800/50';
+    
+    // Area dropdown removed from here
+    tr.innerHTML = `
+        <td class="p-1.5"><input type="text" class="bulk-name w-full p-2 text-sm border border-gray-200 rounded outline-none focus:border-blue-500 dark-input placeholder-gray-300" placeholder="Name..."></td>
+        <td class="p-1.5"><input type="text" class="bulk-ticket w-full p-2 text-sm border border-gray-200 rounded outline-none focus:border-blue-500 dark-input placeholder-gray-300" placeholder="Ticket..."></td>
+        <td class="p-1.5"><input type="text" class="bulk-acct w-full p-2 text-sm border border-gray-200 rounded outline-none focus:border-blue-500 dark-input placeholder-gray-300" placeholder="Account..."></td>
+        <td class="p-1.5"><input type="text" class="bulk-contact w-full p-2 text-sm border border-gray-200 rounded outline-none focus:border-blue-500 dark-input placeholder-gray-300" placeholder="Contact..."></td>
+        <td class="p-1.5"><input type="text" class="bulk-address w-full p-2 text-sm border border-gray-200 rounded outline-none focus:border-blue-500 dark-input placeholder-gray-300" placeholder="Address..."></td>
+        <td class="p-1.5 text-center"><button onclick="this.closest('tr').remove()" class="text-red-400 hover:text-red-600 p-1"><i class="fa-solid fa-trash"></i></button></td>
+    `;
+    tbody.appendChild(tr);
+}
+
 window.toggleModal = (id) => { const m = document.getElementById(id); m.classList.toggle('hidden'); m.classList.toggle('flex'); }
 window.openTeamAnalytics = (teamName) => { let teamData = soData.filter(i => i.team === teamName && (i.type || 'SLR') === currentAppMode); const done = teamData.filter(i => i.status === 'done').length; const total = teamData.length; const percent = total === 0 ? 0 : Math.round((done / total) * 100); document.getElementById('team-modal-name').innerText = teamName; document.getElementById('team-modal-percent').innerText = percent + "%"; document.getElementById('team-modal-total').innerText = total; document.getElementById('team-modal-done').innerText = done; document.getElementById('team-modal-areas').innerHTML = ""; document.getElementById('team-modal-history').innerHTML = ""; toggleModal('team-analytics-modal'); };
 window.clearDateFilter = () => { document.getElementById('global-date-filter').value = ''; render(true); }
-window.showMore = () => { renderLimit += 50; render(false); }
+window.changeRenderLimit = () => {
+    renderLimit = parseInt(document.getElementById('entries-limit').value);
+    render(false);
+}
+window.showMore = () => { 
+    // Add the dropdown's "step" value to the current limit
+    const step = parseInt(document.getElementById('entries-limit').value);
+    renderLimit += step; 
+    render(false); 
+}
+
+// ============================================
+// 9. INBOX BULK ACTIONS
+// ============================================
+window.toggleAllPending = (el) => {
+    const cbs = document.querySelectorAll('.pending-cb');
+    cbs.forEach(cb => cb.checked = el.checked);
+}
+
+window.bulkApprovePending = async () => {
+    const team = document.getElementById('inbox-bulk-team').value;
+    if (!team) return alert("⚠️ Please select a team from the dropdown first.");
+
+    const checkedNodes = document.querySelectorAll('.pending-cb:checked');
+    if (checkedNodes.length === 0) return alert("⚠️ Please select at least one ticket using the checkboxes.");
+
+    if (!confirm(`Dispatch ${checkedNodes.length} tickets to ${team}?`)) return;
+
+    const idsToApprove = Array.from(checkedNodes).map(cb => cb.value);
+    const updates = [];
+    const todayStr = new Date().toLocaleDateString(); // ⚡ FIX: Get today's date
+
+    // Gather data for Supabase Upsert
+    idsToApprove.forEach(id => {
+        const item = soData.find(i => i.id === id);
+        if (item) {
+            const remInput = document.getElementById(`rem-${id}`);
+            const currentRemarks = remInput && remInput.value ? remInput.value : (item.remarks || "");
+
+            // Update local memory
+            item.status = 'active';
+            item.team = team;
+            item.remarks = currentRemarks;
+            item.dateAdded = todayStr; // ⚡ FIX
+            
+            // Prep for Supabase
+            updates.push({
+                id: item.id,
+                status: 'active',
+                team: team,
+                remarks: currentRemarks,
+                dateAdded: todayStr // ⚡ FIX
+            });
+        }
+    });
+
+    render(false);
+
+    try {
+        const { error } = await db.from('service_orders').upsert(updates);
+        if (error) throw error;
+        console.log(`✅ Bulk dispatched ${updates.length} tickets.`);
+    } catch (e) {
+        console.error("Bulk Approve Error:", e);
+        alert("Bulk update failed. Check console.");
+    }
+}
