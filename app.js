@@ -22,6 +22,8 @@ if (DEBUG_MODE) {
 // ============================================
 // 2. GLOBAL VARIABLES
 // ============================================
+let currentUserRole = 'admin';
+let currentUserTeam = null;
 let soData = [];
 let DYNAMIC_TEAMS = new Set(["Team Bernie", "Team Randy"]); 
 let DYNAMIC_AREAS = new Set(["TAGAYTAY", "AMADEO", "MENDEZ", "BAILEN", "MARAGONDON", "ALFONSO", "MAGALLANES", "INDANG"]);
@@ -48,6 +50,15 @@ function renderAreaRow(t,d,tot) {
 }
 function buildOptions(set, selectedVal) {
     let html = `<option value="" disabled ${!selectedVal ? 'selected' : ''}>-- Select --</option>`; [...set].sort().forEach(val => { html += `<option value="${val}" ${selectedVal === val ? 'selected' : ''}>${val}</option>`; }); html += `<option value="NEW_ENTRY" class="font-bold text-blue-600 bg-blue-50">+ ADD NEW...</option>`; return html;
+}
+
+function generateUUID() {
+    if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+    // Fallback for older browsers and Cypress automated testing
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
 }
 
 // ============================================
@@ -79,7 +90,12 @@ window.switchTab = (tab) => {
     
     ['pending', 'active', 'history', 'performance'].forEach(t => { 
         const el = document.getElementById(`nav-${t}`); 
-        if(el) el.className = t === tab ? "flex-1 py-3 text-center text-sm nav-active" : "flex-1 py-3 text-center text-sm nav-item relative"; 
+        if(el) {
+            // ⚡ THE FIX: Remember if RBAC hid this tab, and re-apply it after changing classes
+            const isHidden = el.classList.contains('hidden');
+            el.className = t === tab ? "flex-1 py-3 text-center text-sm nav-active" : "flex-1 py-3 text-center text-sm nav-item relative"; 
+            if (isHidden) el.classList.add('hidden'); 
+        }
     });
     const listView = document.getElementById('view-list'); const perfView = document.getElementById('view-performance');
     if(tab === 'performance') { if(listView) listView.classList.add('hidden'); if(perfView) perfView.classList.remove('hidden'); } 
@@ -119,9 +135,6 @@ window.exportCSV = () => {
 // ============================================
 // 5. SECURITY & AUTH
 // ============================================
-// ============================================
-// 5. SECURITY & AUTH
-// ============================================
 try {
     if (!window.supabase) console.error("Supabase SDK not loaded.");
     else { 
@@ -136,14 +149,16 @@ try {
 // Helper function to check if the user is in the Supabase VIP table
 async function verifyAndShowApp(userEmail) {
     try {
-        // Query the secure table. RLS ensures they can only see their own row.
-        const { data, error } = await db.from('authorized_emails').select('email').eq('email', userEmail);
+        // ⚡ NEW: Grab role and team from Supabase
+        const { data, error } = await db.from('authorized_emails').select('email, role, team').eq('email', userEmail);
         
         if (data && data.length > 0) {
-            // User is on the list! Let them in.
+            currentUserRole = data[0].role || 'tech';
+            currentUserTeam = data[0].team || null;
+            
+            applyRBACUI(); // Lock down the UI
             showApp();
         } else {
-            // User is not on the list. Kick them out.
             console.warn("Unauthorized entry attempt by:", userEmail);
             alert("Unauthorized Email Address: " + userEmail);
             logout(); 
@@ -151,6 +166,20 @@ async function verifyAndShowApp(userEmail) {
     } catch (err) {
         console.error("Verification error:", err);
         logout();
+    }
+}
+
+// ⚡ NEW: The UI Bouncer Function
+function applyRBACUI() {
+    if (currentUserRole === 'tech') {
+        // Hide Admin Tabs
+        document.getElementById('nav-pending')?.classList.add('hidden');
+        document.getElementById('nav-history')?.classList.add('hidden');
+        document.getElementById('nav-performance')?.classList.add('hidden');
+        
+        // Hide Admin Actions
+        document.getElementById('btn-new')?.classList.add('hidden');
+        document.getElementById('btn-bulk')?.classList.add('hidden');
     }
 }
 
@@ -213,7 +242,11 @@ async function startSupabaseListener() {
         
         // ⚡ CHANGED: Default to 'pending' if there are pending items, otherwise 'active'
         const hasPending = soData.some(i => i.status === 'pending');
-        window.switchTab(hasPending ? 'pending' : 'active');
+        if (currentUserRole === 'admin') {
+            window.switchTab(hasPending ? 'pending' : 'active');
+        } else {
+            window.switchTab('active');
+        }
 
         db.channel('custom-all-channel')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'service_orders' }, (payload) => {
@@ -296,7 +329,7 @@ window.saveSO = async () => {
 
     try {
         if(!id) {
-            payload.id = crypto.randomUUID(); 
+            payload.id = generateUUID(); 
             const todayStr = new Date().toLocaleDateString();
             payload.dateAdded = todayStr; 
             payload.date_reported = todayStr; // Auto-stamp reported date for manual entries
@@ -445,7 +478,7 @@ window.saveBulkSO = async () => {
         }
 
         payload.push({ 
-            id: crypto.randomUUID(), 
+            id: generateUUID(),
             name: name, 
             team: team,   // From global dropdown
             area: area,   // From global dropdown
@@ -514,7 +547,7 @@ function render(resetLimit = false) {
     let filtered = soData.filter(item => {
         const itemType = item.type || 'SLR'; 
         if(itemType !== currentAppMode) return false;
-
+        if (currentUserRole === 'tech' && item.team !== currentUserTeam) return false;
         if(searchInput && !item.name.toLowerCase().includes(searchInput)) return false;
         if(teamFilter && item.team !== teamFilter) return false;
         if(areaFilter && item.area !== areaFilter) return false;
@@ -738,7 +771,7 @@ function createCardHTML(item) {
             </div>
             <div class="flex gap-1 shrink-0">
                 <button onclick="openModal('${item.id}')" class="text-gray-300 hover:text-${color}-600 p-1"><i class="fa-solid fa-pen"></i></button>
-                <button onclick="deleteSO('${item.id}')" class="text-gray-300 hover:text-red-500 p-1"><i class="fa-solid fa-trash"></i></button>
+                ${currentUserRole === 'admin' ? `<button onclick="deleteSO('${item.id}')" class="text-gray-300 hover:text-red-500 p-1"><i class="fa-solid fa-trash"></i></button>` : ''}
             </div>
         </div>
 
@@ -888,10 +921,9 @@ window.bulkApprovePending = async () => {
     if (!confirm(`Dispatch ${checkedNodes.length} tickets to ${team}?`)) return;
 
     const idsToApprove = Array.from(checkedNodes).map(cb => cb.value);
-    const updates = [];
-    const todayStr = new Date().toLocaleDateString(); // ⚡ FIX: Get today's date
+    const updatePromises = [];
+    const todayStr = new Date().toLocaleDateString();
 
-    // Gather data for Supabase Upsert
     idsToApprove.forEach(id => {
         const item = soData.find(i => i.id === id);
         if (item) {
@@ -902,25 +934,27 @@ window.bulkApprovePending = async () => {
             item.status = 'active';
             item.team = team;
             item.remarks = currentRemarks;
-            item.dateAdded = todayStr; // ⚡ FIX
+            item.dateAdded = todayStr;
             
-            // Prep for Supabase
-            updates.push({
-                id: item.id,
-                status: 'active',
-                team: team,
-                remarks: currentRemarks,
-                dateAdded: todayStr // ⚡ FIX
-            });
+            // Prep individual safe updates for Supabase
+            updatePromises.push(
+                db.from('service_orders').update({
+                    status: 'active',
+                    team: team,
+                    remarks: currentRemarks,
+                    dateAdded: todayStr
+                }).eq('id', id)
+            );
         }
     });
 
+    // Optimistically render UI
     render(false);
 
     try {
-        const { error } = await db.from('service_orders').upsert(updates);
-        if (error) throw error;
-        console.log(`✅ Bulk dispatched ${updates.length} tickets.`);
+        // Fire all updates to the database safely
+        await Promise.all(updatePromises);
+        console.log(`✅ Bulk dispatched ${updatePromises.length} tickets.`);
     } catch (e) {
         console.error("Bulk Approve Error:", e);
         alert("Bulk update failed. Check console.");
