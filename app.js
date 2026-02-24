@@ -22,6 +22,7 @@ if (DEBUG_MODE) {
 // ============================================
 // 2. GLOBAL VARIABLES
 // ============================================
+let actualUserRole = 'tech';
 let currentUserRole = 'admin';
 let currentUserTeam = null;
 let soData = [];
@@ -149,14 +150,19 @@ try {
 // Helper function to check if the user is in the Supabase VIP table
 async function verifyAndShowApp(userEmail) {
     try {
-        // ⚡ NEW: Grab role and team from Supabase
         const { data, error } = await db.from('authorized_emails').select('email, role, team').eq('email', userEmail);
         
         if (data && data.length > 0) {
-            currentUserRole = data[0].role || 'tech';
+            actualUserRole = data[0].role || 'tech';
+            currentUserRole = actualUserRole; 
             currentUserTeam = data[0].team || null;
             
-            applyRBACUI(); // Lock down the UI
+            // ⚡ SECURE CHECK: Only unhide Dev Tools if the database says you are a developer
+            if (actualUserRole === 'developer') {
+                document.getElementById('dev-tools').classList.remove('hidden');
+            }
+            
+            applyRBACUI(); 
             showApp();
         } else {
             console.warn("Unauthorized entry attempt by:", userEmail);
@@ -169,18 +175,50 @@ async function verifyAndShowApp(userEmail) {
     }
 }
 
+// Powers the Dev Panel Dropdowns
+window.applyImpersonation = () => {
+    if (actualUserRole !== 'developer') return; // Double security check
+    
+    const role = document.getElementById('dev-role').value;
+    const team = document.getElementById('dev-team').value;
+
+    currentUserRole = role;
+    
+    if (role === 'tech') {
+        document.getElementById('dev-team-container').classList.remove('hidden');
+        currentUserTeam = team;
+    } else {
+        document.getElementById('dev-team-container').classList.add('hidden');
+        currentUserTeam = null; 
+    }
+    applyRBACUI();
+};
+
+function updateDevTeamDropdown() {
+    const devSelect = document.getElementById('dev-team');
+    if (devSelect && actualUserRole === 'developer') {
+        devSelect.innerHTML = [...DYNAMIC_TEAMS].sort().map(t => `<option value="${t}">${t}</option>`).join('');
+        // Re-apply if we are currently impersonating
+        if (currentUserRole === 'tech') applyImpersonation();
+    }
+}
+
 // ⚡ NEW: The UI Bouncer Function
 function applyRBACUI() {
+    const adminTabs = ['nav-pending', 'nav-history', 'nav-performance'];
+    const adminBtns = ['btn-new', 'btn-bulk'];
+
     if (currentUserRole === 'tech') {
-        // Hide Admin Tabs
-        document.getElementById('nav-pending')?.classList.add('hidden');
-        document.getElementById('nav-history')?.classList.add('hidden');
-        document.getElementById('nav-performance')?.classList.add('hidden');
-        
-        // Hide Admin Actions
-        document.getElementById('btn-new')?.classList.add('hidden');
-        document.getElementById('btn-bulk')?.classList.add('hidden');
+        // Lock it down
+        adminTabs.forEach(id => document.getElementById(id)?.classList.add('hidden'));
+        adminBtns.forEach(id => document.getElementById(id)?.classList.add('hidden'));
+        if (['pending', 'history', 'performance'].includes(currentTab)) switchTab('active');
+    } else {
+        // Developer or Admin: Unlock everything
+        adminTabs.forEach(id => document.getElementById(id)?.classList.remove('hidden'));
+        adminBtns.forEach(id => document.getElementById(id)?.classList.remove('hidden'));
     }
+    render(true);
 }
 
 if(db) {
@@ -271,6 +309,7 @@ function extractDynamicOptions() {
     
     populateFilterDropdown('global-team-filter', DYNAMIC_TEAMS, "All Teams");
     populateFilterDropdown('global-area-filter', DYNAMIC_AREAS, "All Areas");
+    updateDevTeamDropdown();
 }
 
 function populateFilterDropdown(id, set, label) {

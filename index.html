@@ -246,5 +246,23 @@
     <div id="team-analytics-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden items-center justify-center p-4 z-50 backdrop-blur-sm"><div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col max-h-[80vh] dark-element"><div id="team-modal-header" class="p-6 text-white shrink-0"><div class="flex justify-between items-start"><div><p class="text-xs font-bold text-white/70 uppercase">Team Performance</p><h2 class="text-2xl font-bold" id="team-modal-name"></h2></div><button onclick="toggleModal('team-analytics-modal')" class="text-white/50 hover:text-white"><i class="fa-solid fa-times text-xl"></i></button></div><div class="mt-4 flex items-end gap-2"><span class="text-4xl font-bold" id="team-modal-percent"></span><span class="text-sm text-white/70 mb-1">Efficiency</span></div></div><div class="p-4 overflow-y-auto"><div class="grid grid-cols-2 gap-3 mb-4"><div class="bg-blue-50 p-3 rounded-xl border border-blue-100 text-center dark-bg-sub dark-border"><p class="text-xs text-blue-500 font-bold uppercase">Total</p><p class="text-xl font-bold text-blue-700" id="team-modal-total"></p></div><div class="bg-green-50 p-3 rounded-xl border border-green-100 text-center dark-bg-sub dark-border"><p class="text-xs text-green-500 font-bold uppercase">Done</p><p class="text-xl font-bold text-green-700" id="team-modal-done"></p></div></div><h4 class="text-xs font-bold text-gray-400 uppercase mb-2">Top Areas</h4><div id="team-modal-areas" class="space-y-1 mb-4"></div><h4 class="text-xs font-bold text-gray-400 uppercase mb-2">History</h4><div id="team-modal-history" class="space-y-2 text-sm text-gray-600"></div></div></div></div>
 
     <script src="app.min.js"></script>
+    <div id="dev-tools" class="hidden fixed bottom-4 right-4 bg-slate-900 text-white p-4 rounded-xl shadow-2xl z-50 border border-slate-700 w-64 transition-all">
+        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3"><i class="fa-solid fa-user-secret mr-1"></i> Dev Impersonator</h3>
+        <div class="space-y-3">
+            <div>
+                <label class="block text-[10px] text-slate-400 mb-1">Simulate Role:</label>
+                <select id="dev-role" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2 text-xs outline-none focus:border-blue-500 font-bold" onchange="applyImpersonation()">
+                    <option value="developer">Developer (Full Access)</option>
+                    <option value="admin">Admin (Dispatcher)</option>
+                    <option value="tech">Field Tech (Restricted)</option>
+                </select>
+            </div>
+            <div id="dev-team-container" class="hidden">
+                <label class="block text-[10px] text-slate-400 mb-1">Simulate Team View:</label>
+                <select id="dev-team" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2 text-xs outline-none focus:border-blue-500 font-bold" onchange="applyImpersonation()">
+                    </select>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
