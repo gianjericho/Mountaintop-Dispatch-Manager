@@ -1,5 +1,10 @@
 describe('RBAC Verification - Field Tech Role', () => {
 
+  // ⚡ CATCH SILENT ERRORS: If the app throws an alert(), fail the test instantly and show us!
+  Cypress.on('window:alert', (msg) => {
+    throw new Error(`🚨 CAUGHT SILENT APP ERROR: ${msg}`);
+  });
+
   // 1. SETUP: Log in specifically as the TECH user
   beforeEach(() => {
     cy.visit('http://127.0.0.1:5500/index.html');
@@ -14,8 +19,8 @@ describe('RBAC Verification - Field Tech Role', () => {
         email: Cypress.env('TECH_TEST_EMAIL'), 
         password: Cypress.env('TECH_TEST_PASSWORD')          
       });
-      
-      if (error) console.error("Tech Login Failed:", error);
+      // ⚡ THE FIX: Throw a hard error if login fails so we don't test as an anonymous user!
+      if (error) throw new Error(`🚨 SUPABASE LOGIN FAILED: ${error.message}`);
       win.showApp();
     });
 
