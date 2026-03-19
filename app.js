@@ -28,6 +28,7 @@ let currentUserTeam = null;
 let soData = [];
 let DYNAMIC_TEAMS = new Set(["Team Bernie", "Team Randy"]); 
 let DYNAMIC_AREAS = new Set(["TAGAYTAY", "AMADEO", "MENDEZ", "BAILEN", "MARAGONDON", "ALFONSO", "MAGALLANES", "INDANG"]);
+let authTeamsList = [];
 
 // ⚡ CHANGED: Default mode is now SLR, but default Tab can be active or pending.
 let currentTab = 'active';
@@ -117,7 +118,7 @@ window.switchTab = (tab) => {
 
 window.clearAllFilters = () => { document.getElementById('global-date-filter').value = ''; document.getElementById('global-team-filter').value = ''; document.getElementById('global-area-filter').value = ''; document.getElementById('global-search').value = ''; render(true); }
 window.toggleSettings = () => { toggleModal('settings-modal'); document.getElementById('team-list-settings').innerHTML = [...DYNAMIC_TEAMS].sort().map(t => `<div class="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-200 dark-bg-sub dark-border"><span class="text-sm font-medium text-gray-700 dark-text">${t}</span><div class="flex gap-2"><button onclick="renameTeam('${t}')" class="text-blue-400 hover:text-blue-600"><i class="fa-solid fa-pen"></i></button><button onclick="deleteTeam('${t}')" class="text-red-400 hover:text-red-600"><i class="fa-solid fa-trash-can"></i></button></div></div>`).join(''); }
-window.addNewTeam = () => { const val = document.getElementById('new-team-name').value.trim(); if (val && !DYNAMIC_TEAMS.has(val)) { DYNAMIC_TEAMS.add(val); document.getElementById('new-team-name').value = ''; toggleSettings(); } }
+window.addNewTeam = () => { const val = document.getElementById('new-team-name').value.trim(); if (val && !DYNAMIC_TEAMS.has(val)) { DYNAMIC_TEAMS.add(val); if (typeof authTeamsList !== 'undefined') authTeamsList.push(val); document.getElementById('new-team-name').value = ''; toggleSettings(); } }
 window.toggleTheme = () => { document.body.classList.toggle('dark-mode'); const isDark = document.body.classList.contains('dark-mode'); localStorage.setItem('slrTheme', isDark ? 'dark' : 'light'); }
 if(localStorage.getItem('slrTheme') === 'dark') document.body.classList.add('dark-mode');
 
@@ -275,6 +276,12 @@ async function startSupabaseListener() {
         const { data, error } = await db.from('service_orders').select('*');
         if(error) throw error;
         soData = data || [];
+        
+        try {
+            const { data: authData } = await db.from('authorized_emails').select('team');
+            if (authData) authTeamsList = authData.map(r => r.team).filter(t => t && t.trim() !== '' && t.trim() !== 'Unassigned');
+        } catch (e) { console.error("Auth teams load error", e); }
+
         extractDynamicOptions();
         document.getElementById('loading-screen').classList.add('hidden');
         
@@ -301,6 +308,8 @@ function extractDynamicOptions() {
     // ⚡ THE FIX: Re-initialize BOTH Sets with their default values so they never disappear!
     DYNAMIC_TEAMS = new Set(["Team Bernie", "Team Randy"]); 
     DYNAMIC_AREAS = new Set(["TAGAYTAY", "AMADEO", "MENDEZ", "BAILEN", "MARAGONDON", "ALFONSO", "MAGALLANES", "INDANG"]); 
+    
+    if (typeof authTeamsList !== 'undefined') authTeamsList.forEach(t => DYNAMIC_TEAMS.add(t));
     
     soData.forEach(item => { 
         if(item.team && item.team !== 'Unassigned') DYNAMIC_TEAMS.add(item.team); 
