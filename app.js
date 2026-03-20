@@ -804,10 +804,16 @@ function createCardHTML(item) {
             </div>
             
             ${item.trouble_report ? `
+            ${currentAppMode === 'SLI' ? `
+            <div class="mt-2 pt-1.5 border-t border-slate-200 dark-border text-indigo-600 font-bold flex items-start">
+                <i class="fa-solid fa-box mt-0.5 mr-1.5"></i>
+                <span class="leading-tight">Package: ${item.trouble_report}</span>
+            </div>` : `
             <div class="mt-2 pt-1.5 border-t border-slate-200 dark-border text-orange-600 font-bold flex items-start">
                 <i class="fa-solid fa-triangle-exclamation mt-0.5 mr-1.5"></i>
                 <span class="leading-tight">${item.trouble_report}</span>
-            </div>` : ''}
+            </div>`}
+            ` : ''}
         </div>
     `;
 
@@ -916,6 +922,27 @@ window.openModal = (editId = null) => {
         document.getElementById('input-trouble').value = "";
         document.getElementById('input-longlat').value = "";
     }
+
+    const troubleInput = document.getElementById('input-trouble');
+    const ticketInput = document.getElementById('input-ticket');
+    const ticketAccountContainer = document.getElementById('ticket-account-container');
+
+    if (currentAppMode === 'SLI') {
+        troubleInput.placeholder = "Package Details";
+        if (ticketInput) ticketInput.classList.add('hidden');
+        if (ticketAccountContainer) {
+            ticketAccountContainer.classList.remove('grid-cols-2');
+            ticketAccountContainer.classList.add('grid-cols-1');
+        }
+    } else {
+        troubleInput.placeholder = "Reported Trouble";
+        if (ticketInput) ticketInput.classList.remove('hidden');
+        if (ticketAccountContainer) {
+            ticketAccountContainer.classList.remove('grid-cols-1');
+            ticketAccountContainer.classList.add('grid-cols-2');
+        }
+    }
+
     toggleModal('form-modal');
 }
 
