@@ -35,7 +35,8 @@ describe('RBAC Verification - Field Tech Role', () => {
     // Check Tabs
     cy.get('#nav-pending').should('have.class', 'hidden');
     cy.get('#nav-history').should('have.class', 'hidden');
-    cy.get('#nav-performance').should('have.class', 'hidden');
+    // Techs can now view performance
+    cy.get('#nav-performance').should('not.have.class', 'hidden');
     
     // Techs should default to the Active (Dispatch) tab
     cy.get('#nav-active').should('be.visible');

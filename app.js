@@ -207,14 +207,14 @@ function updateDevTeamDropdown() {
 
 // ⚡ NEW: The UI Bouncer Function
 function applyRBACUI() {
-    const adminTabs = ['nav-pending', 'nav-history', 'nav-performance'];
+    const adminTabs = ['nav-pending', 'nav-history'];
     const adminBtns = ['btn-new', 'btn-bulk'];
 
     if (currentUserRole === 'tech') {
         // Lock it down
         adminTabs.forEach(id => document.getElementById(id)?.classList.add('hidden'));
         adminBtns.forEach(id => document.getElementById(id)?.classList.add('hidden'));
-        if (['pending', 'history', 'performance'].includes(currentTab)) switchTab('active');
+        if (['pending', 'history'].includes(currentTab)) switchTab('active');
     } else {
         // Developer or Admin: Unlock everything
         adminTabs.forEach(id => document.getElementById(id)?.classList.remove('hidden'));
@@ -430,13 +430,15 @@ window.approveSO = async (id) => {
         await db.from('service_orders').update({
             status: 'active',
             remarks: currentRemarks,
-            dateAdded: todayStr // ⚡ FIX: Stamp the date it was actually dispatched
+            dateAdded: todayStr, // ⚡ FIX: Stamp the date it was actually dispatched
+            dispatched_by: window.currentUserEmail
         }).eq('id', id);
 
         // Optimistic update locally
         item.status = 'active';
         item.remarks = currentRemarks;
         item.dateAdded = todayStr; // ⚡ FIX: Update local UI state
+        item.dispatched_by = window.currentUserEmail;
 
         render(false);
     } catch (e) {
@@ -827,7 +829,7 @@ function createCardHTML(item) {
                     <span class="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded mb-1 inline-block border border-slate-200 dark-bg-sub dark-text dark-border">${item.area}</span>
                     <h3 class="font-bold text-gray-800 text-lg leading-tight dark-text">${item.name}</h3>
                     <p class="text-xs ${teamColorClass} mt-0.5 uppercase tracking-wide dark-text">${item.team}</p>
-                    <div class="text-[10px] text-gray-400 mt-1 tracking-wider"><i class="fa-solid fa-headset mr-1"></i> Dispatcher: ${item.dispatched_by || 'Unknown'}</div>
+                    <div class="text-[10px] text-gray-400 mt-1 tracking-wider"><i class="fa-solid fa-headset mr-1"></i> Dispatched by: ${item.dispatched_by || 'Unknown'}</div>
                 </div>
             </div>
             <div class="flex gap-1 shrink-0">
@@ -851,7 +853,7 @@ function createCardHTML(item) {
 
         ${!isDone ? `
         <div class="flex items-center justify-between gap-3 mt-3 border-t border-slate-100 pt-3 dark-border">
-            <input type="text" id="rem-${item.id}" value="${currentUserRole === 'tech' ? (item.tech_remarks || '') : (item.remarks || '')}" placeholder="Add ${currentUserRole === 'tech' ? 'Technician' : 'Dispatcher'} Remarks..." class="flex-1 bg-slate-50 text-sm px-3 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:border-${color}-500 dark-input focus:ring-2 focus:ring-${color}-500/20 transition-all font-medium text-slate-700 placeholder-slate-400">
+            <input type="text" id="rem-${item.id}" value="${currentUserRole === 'tech' ? (item.tech_remarks || '') : (item.remarks || '')}" placeholder="${currentUserRole === 'tech' ? 'Add your own remarks (separate from dispatcher)' : 'Add Dispatcher Remarks...'}" class="flex-1 bg-slate-50 text-sm px-3 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:border-${color}-500 dark-input focus:ring-2 focus:ring-${color}-500/20 transition-all font-medium text-slate-700 placeholder-slate-400">
             ${actionBtn}
         </div>` : `
         <div class="flex justify-end mt-2 pb-1 border-t border-slate-100 pt-2 dark-border">${actionBtn}</div>
