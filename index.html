@@ -96,7 +96,7 @@
                 </div>
                 <div id="perf-card" class="bg-slate-800 text-white rounded-2xl p-5 shadow-xl relative overflow-hidden transition-colors duration-500">
                     <div class="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white rounded-full opacity-10 blur-xl"></div>
-                    <div class="flex justify-between items-end mb-2"><div><p class="text-white/60 text-xs font-bold uppercase tracking-wider">Efficiency Score</p><h2 class="text-3xl font-bold" id="global-percent">0%</h2></div><div class="text-right"><p class="text-sm text-white/80"><span id="global-done" class="text-white font-bold">0</span> of <span id="global-total">0</span></p></div></div>
+                    <div class="flex justify-between items-end mb-2"><div><p class="text-white/60 text-xs font-bold uppercase tracking-wider">MOUNTAINTOP Efficiency Score</p><h2 class="text-3xl font-bold" id="global-percent">0%</h2></div><div class="text-right"><p class="text-sm text-white/80"><span id="global-done" class="text-white font-bold">0</span> of <span id="global-total">0</span></p></div></div>
                     <div class="w-full bg-black/30 rounded-full h-2.5"><div id="global-bar" class="bg-white h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div></div>
                 </div>
                 <div id="team-stats-container" class="grid grid-cols-2 gap-3"></div>
@@ -177,6 +177,10 @@
                         <input type="text" id="input-trouble" placeholder="Reported Trouble" class="w-full text-sm border border-gray-300 rounded-lg p-2 focus:ring-2 outline-none dark-input">
                     </div>
                     
+                    <div class="mb-2">
+                        <input type="text" id="input-remarks" placeholder="Dispatcher Remarks" class="w-full text-sm border border-gray-300 rounded-lg p-2 focus:ring-2 outline-none dark-input">
+                    </div>
+                    
                     <div>
                         <input type="text" id="input-longlat" placeholder="Long/Lat (e.g. 14.123, 120.456)" class="w-full text-sm border border-gray-300 rounded-lg p-2 focus:ring-2 outline-none dark-input">
                     </div>
@@ -216,6 +220,7 @@
                             <th class="p-3 text-[10px] font-bold text-gray-500 uppercase border-b dark-border w-32">Account No.</th>
                             <th class="p-3 text-[10px] font-bold text-gray-500 uppercase border-b dark-border w-32">Contact</th>
                             <th class="p-3 text-[10px] font-bold text-gray-500 uppercase border-b dark-border">Address</th>
+                            <th class="p-3 text-[10px] font-bold text-gray-500 uppercase border-b dark-border">Remarks</th>
                             <th class="p-3 text-[10px] font-bold text-gray-500 uppercase border-b dark-border w-10 text-center">X</th>
                         </tr>
                     </thead>

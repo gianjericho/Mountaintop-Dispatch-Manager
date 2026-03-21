@@ -34,8 +34,8 @@ describe('RBAC Verification - Field Tech Role', () => {
   it('1. Tech should NOT see Admin Tabs or Buttons', () => {
     // Check Tabs
     cy.get('#nav-pending').should('have.class', 'hidden');
-    cy.get('#nav-history').should('have.class', 'hidden');
-    // Techs can now view performance
+    // Techs can now view performance and history
+    cy.get('#nav-history').should('not.have.class', 'hidden');
     cy.get('#nav-performance').should('not.have.class', 'hidden');
     
     // Techs should default to the Active (Dispatch) tab

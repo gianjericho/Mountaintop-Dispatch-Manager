@@ -207,14 +207,14 @@ function updateDevTeamDropdown() {
 
 // ⚡ NEW: The UI Bouncer Function
 function applyRBACUI() {
-    const adminTabs = ['nav-pending', 'nav-history'];
+    const adminTabs = ['nav-pending'];
     const adminBtns = ['btn-new', 'btn-bulk'];
 
     if (currentUserRole === 'tech') {
         // Lock it down
         adminTabs.forEach(id => document.getElementById(id)?.classList.add('hidden'));
         adminBtns.forEach(id => document.getElementById(id)?.classList.add('hidden'));
-        if (['pending', 'history'].includes(currentTab)) switchTab('active');
+        if (['pending'].includes(currentTab)) switchTab('active');
     } else {
         // Developer or Admin: Unlock everything
         adminTabs.forEach(id => document.getElementById(id)?.classList.remove('hidden'));
@@ -349,10 +349,14 @@ window.saveSO = async () => {
     if (!name || !team || !area) return alert("All fields required");
 
     let remarksToSave = "";
-    if (id) {
+    const modalRemarks = document.getElementById('input-remarks') ? document.getElementById('input-remarks').value.trim() : "";
+
+    if (modalRemarks) {
+        remarksToSave = modalRemarks;
+    } else if (id) {
         const remInput = document.getElementById(`rem-${id}`);
-        if (remInput) {
-            remarksToSave = remInput.value;
+        if (remInput && remInput.value.trim() !== "") {
+            remarksToSave = remInput.value.trim();
         } else {
             const existingItem = soData.find(i => i.id === id);
             if (existingItem && existingItem.remarks) remarksToSave = existingItem.remarks;
@@ -489,8 +493,8 @@ document.addEventListener('paste', function (e) {
 
         cols.forEach((cellData, cIdx) => {
             const currentColIdx = startColIdx + cIdx;
-            // Ensure we don't paste past the 5th column (the delete button)
-            if (currentColIdx < 5) {
+            // Ensure we don't paste past the 6th column (the delete button)
+            if (currentColIdx < 6) {
                 const input = tr.children[currentColIdx].querySelector('input');
                 if (input) {
                     input.value = cellData.trim();
@@ -519,9 +523,10 @@ window.saveBulkSO = async () => {
         const acct = row.querySelector('.bulk-acct').value.trim();
         const contact = row.querySelector('.bulk-contact').value.trim();
         const address = row.querySelector('.bulk-address').value.trim();
+        const remarks = row.querySelector('.bulk-remarks').value.trim();
 
         // Skip completely empty rows
-        if (!name && !ticket && !acct && !contact && !address) return;
+        if (!name && !ticket && !acct && !contact && !address && !remarks) return;
 
         // Ensure required Name field is filled
         if (!name) {
@@ -545,6 +550,7 @@ window.saveBulkSO = async () => {
             account_no: acct,
             contact_number: contact,
             address: address,
+            remarks: remarks,
             pic: false, pwr: false, speed: false, rpt: false,
             dispatched_by: window.currentUserEmail
         });
@@ -848,14 +854,16 @@ function createCardHTML(item) {
             <label class="flex items-center space-x-2"><input type="checkbox" ${check(item.rpt)} onclick="toggleCheck('${item.id}', 'rpt')" ${isDone ? 'disabled' : ''} class="accent-${color}-600"><span>Service Rpt</span></label>
         </div>` : ''}
         
-        ${(item.remarks && (currentUserRole === 'tech' || isDone)) ? `<div class="bg-yellow-50 border-l-4 border-yellow-400 p-2.5 mb-2.5 rounded-r shadow-sm dark-bg-sub dark-border text-left"><span class="text-[9px] font-extrabold text-yellow-700 uppercase tracking-widest mb-0.5 block"><i class="fa-solid fa-user-shield mr-1"></i> Dispatcher Note</span><span class="text-xs text-yellow-800 dark-text font-medium">${item.remarks}</span></div>` : ''}
-        ${(item.tech_remarks && (currentUserRole === 'admin' || isDone)) ? `<div class="bg-indigo-50 border-l-4 border-indigo-400 p-2.5 mb-2.5 rounded-r shadow-sm dark-bg-sub dark-border text-left"><span class="text-[9px] font-extrabold text-indigo-700 uppercase tracking-widest mb-0.5 block"><i class="fa-solid fa-wrench mr-1"></i> Technician Note</span><span class="text-xs text-indigo-800 dark-text font-medium">${item.tech_remarks}</span></div>` : ''}
+        ${(item.remarks || (currentUserRole !== 'tech' && !isPending && !isDone)) ? `<div class="bg-yellow-50 border-l-4 border-yellow-400 p-2.5 mb-2.5 rounded-r shadow-sm dark-bg-sub dark-border text-left"><span class="text-[9px] font-extrabold text-yellow-700 uppercase tracking-widest mb-0.5 block"><i class="fa-solid fa-user-shield mr-1"></i> Dispatcher Note</span><span class="text-xs text-yellow-800 dark-text font-medium">${item.remarks || 'No remarks provided'}</span></div>` : ''}
+        ${(item.tech_remarks && (currentUserRole !== 'tech' || isDone)) ? `<div class="bg-indigo-50 border-l-4 border-indigo-400 p-2.5 mb-2.5 rounded-r shadow-sm dark-bg-sub dark-border text-left"><span class="text-[9px] font-extrabold text-indigo-700 uppercase tracking-widest mb-0.5 block"><i class="fa-solid fa-wrench mr-1"></i> Technician Note</span><span class="text-xs text-indigo-800 dark-text font-medium">${item.tech_remarks}</span></div>` : ''}
 
-        ${!isDone ? `
-        <div class="flex items-center justify-between gap-3 mt-3 border-t border-slate-100 pt-3 dark-border">
-            <input type="text" id="rem-${item.id}" value="${currentUserRole === 'tech' ? (item.tech_remarks || '') : (item.remarks || '')}" placeholder="${currentUserRole === 'tech' ? 'Add your own remarks (separate from dispatcher)' : 'Add Dispatcher Remarks...'}" class="flex-1 bg-slate-50 text-sm px-3 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:border-${color}-500 dark-input focus:ring-2 focus:ring-${color}-500/20 transition-all font-medium text-slate-700 placeholder-slate-400">
-            ${actionBtn}
-        </div>` : `
+        ${!isDone ? (
+            (currentUserRole !== 'tech' && !isPending) ? '' :
+                `<div class="flex items-center justify-between gap-3 mt-3 border-t border-slate-100 pt-3 dark-border">
+                <input type="text" id="rem-${item.id}" value="${currentUserRole === 'tech' ? (item.tech_remarks || '') : (item.remarks || '')}" placeholder="${currentUserRole === 'tech' ? 'Add technician remarks' : 'Add dispatch remarks'}" class="flex-1 bg-slate-50 text-sm px-3 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:border-${color}-500 dark-input focus:ring-2 focus:ring-${color}-500/20 transition-all font-medium text-slate-700 placeholder-slate-400">
+                ${actionBtn}
+            </div>`
+        ) : `
         <div class="flex justify-end mt-2 pb-1 border-t border-slate-100 pt-2 dark-border">${actionBtn}</div>
         `}
     </div>`;
@@ -863,7 +871,17 @@ function createCardHTML(item) {
 
 function renderPerformance(data) {
     const stats = { total: data.length, done: 0, teams: {}, areas: {} };
-    data.forEach(item => { if (!stats.teams[item.team]) stats.teams[item.team] = { total: 0, done: 0 }; if (!stats.areas[item.area]) stats.areas[item.area] = { total: 0, done: 0 }; stats.teams[item.team].total++; if (item.status === 'done') stats.teams[item.team].done++; stats.areas[item.area].total++; if (item.status === 'done') stats.areas[item.area].done++; });
+    data.forEach(item => {
+        if (!stats.teams[item.team]) stats.teams[item.team] = { total: 0, done: 0 };
+        if (!stats.areas[item.area]) stats.areas[item.area] = { total: 0, done: 0 };
+        stats.teams[item.team].total++;
+        if (item.status === 'done') {
+            stats.teams[item.team].done++;
+            stats.done++;
+        }
+        stats.areas[item.area].total++;
+        if (item.status === 'done') stats.areas[item.area].done++;
+    });
     const percent = stats.total === 0 ? 0 : Math.round((stats.done / stats.total) * 100);
     document.getElementById('global-percent').innerText = percent + '%'; document.getElementById('global-done').innerText = stats.done; document.getElementById('global-total').innerText = stats.total; document.getElementById('global-bar').style.width = percent + '%';
     document.getElementById('team-stats-container').innerHTML = Object.entries(stats.teams).map(([n, d]) => renderMiniCard(n, d.done, d.total)).join('');
@@ -908,6 +926,7 @@ window.openModal = (editId = null) => {
         document.getElementById('input-facility').value = editItem.facility || "";
         document.getElementById('input-address').value = editItem.address || "";
         document.getElementById('input-trouble').value = editItem.trouble_report || "";
+        document.getElementById('input-remarks').value = editItem.remarks || "";
         document.getElementById('input-longlat').value = editItem.long_lat || "";
     } else {
         // ⚡ NEW DISPATCH MODE: Clear all fields
@@ -922,6 +941,7 @@ window.openModal = (editId = null) => {
         document.getElementById('input-facility').value = "";
         document.getElementById('input-address').value = "";
         document.getElementById('input-trouble').value = "";
+        document.getElementById('input-remarks').value = "";
         document.getElementById('input-longlat').value = "";
     }
 
@@ -974,6 +994,7 @@ window.addBulkRow = () => {
         <td class="p-1.5"><input type="text" class="bulk-acct w-full p-2 text-sm border border-gray-200 rounded outline-none focus:border-blue-500 dark-input placeholder-gray-300" placeholder="Account..."></td>
         <td class="p-1.5"><input type="text" class="bulk-contact w-full p-2 text-sm border border-gray-200 rounded outline-none focus:border-blue-500 dark-input placeholder-gray-300" placeholder="Contact..."></td>
         <td class="p-1.5"><input type="text" class="bulk-address w-full p-2 text-sm border border-gray-200 rounded outline-none focus:border-blue-500 dark-input placeholder-gray-300" placeholder="Address..."></td>
+        <td class="p-1.5"><input type="text" class="bulk-remarks w-full p-2 text-sm border border-gray-200 rounded outline-none focus:border-blue-500 dark-input placeholder-gray-300" placeholder="Remarks..."></td>
         <td class="p-1.5 text-center"><button onclick="this.closest('tr').remove()" class="text-red-400 hover:text-red-600 p-1"><i class="fa-solid fa-trash"></i></button></td>
     `;
     tbody.appendChild(tr);
