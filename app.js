@@ -4,18 +4,14 @@
 const DEBUG_MODE = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.protocol === "file:");
 function log(msg, data = null) { if (!DEBUG_MODE) return; const time = new Date().toLocaleTimeString(); if (data) console.log(`[${time}] 🔧 ${msg}`, data); else console.log(`[${time}] 🔧 ${msg}`); }
 
-// ⚡ THE FIX: Environment-Aware Database Keys
 let SUPABASE_URL = "";
 let SUPABASE_KEY = "";
 
 if (DEBUG_MODE) {
-    // 🧪 TEST ENVIRONMENT (Runs only on your Mac / localhost)
     log("Running in TEST MODE connected to Sandbox DB");
-    SUPABASE_URL = "https://fqxturtabhbpgbizriss.supabase.co"; // <-- Paste Test URL here
-    SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxeHR1cnRhYmhicGdiaXpyaXNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2NTM5MzMsImV4cCI6MjA4NzIyOTkzM30.p9lIjSuiGRG84YlpXVe0B-rdd1-6tz4zU-uKzKjQNEQ";                // <-- Paste Test Key here
+    SUPABASE_URL = "https://fqxturtabhbpgbizriss.supabase.co";
+    SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxeHR1cnRhYmhicGdiaXpyaXNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2NTM5MzMsImV4cCI6MjA4NzIyOTkzM30.p9lIjSuiGRG84YlpXVe0B-rdd1-6tz4zU-uKzKjQNEQ";
 } else {
-    // 🚨 PRODUCTION ENVIRONMENT (Runs only on Netlify / Live Web)
-    // DO NOT change these. These are your real, live database keys.
     SUPABASE_URL = "https://qqrzlltwvvpowdigffsq.supabase.co";
     SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxcnpsbHR3dnZwb3dkaWdmZnNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzNTQ4MTUsImV4cCI6MjA4NTkzMDgxNX0.4C1CcwQ7BSx53Ofk284Mtc0TPxd3KoHfMR_qIm9WbZQ";
 }
@@ -30,7 +26,6 @@ let DYNAMIC_TEAMS = new Set(["Team Bernie", "Team Randy"]);
 let DYNAMIC_AREAS = new Set(["TAGAYTAY", "AMADEO", "MENDEZ", "BAILEN", "MARAGONDON", "ALFONSO", "MAGALLANES", "INDANG"]);
 let authTeamsList = [];
 
-// ⚡ CHANGED: Default mode is now SLR, but default Tab can be active or pending.
 let currentTab = 'active';
 let currentAppMode = 'SLR';
 let renderLimit = 50;
@@ -56,7 +51,6 @@ function buildOptions(set, selectedVal) {
 
 function generateUUID() {
     if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
-    // Fallback for older browsers and Cypress automated testing
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
         var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
         return v.toString(16);
@@ -84,7 +78,6 @@ window.switchAppMode = (mode) => {
     render(true);
 }
 
-// ⚡ CHANGED: Added 'pending' tab logic
 window.switchTab = (tab) => {
     currentTab = tab;
     const limitEl = document.getElementById('entries-limit');
@@ -93,7 +86,6 @@ window.switchTab = (tab) => {
     ['pending', 'active', 'history', 'performance'].forEach(t => {
         const el = document.getElementById(`nav-${t}`);
         if (el) {
-            // ⚡ THE FIX: Remember if RBAC hid this tab, and re-apply it after changing classes
             const isHidden = el.classList.contains('hidden');
             el.className = t === tab ? "flex-1 py-3 text-center text-sm nav-active" : "flex-1 py-3 text-center text-sm nav-item relative";
             if (isHidden) el.classList.add('hidden');
@@ -106,7 +98,6 @@ window.switchTab = (tab) => {
         if (listView) listView.classList.remove('hidden');
         const header = document.getElementById('list-header');
 
-        // ⚡ CHANGED: Dynamic Header
         if (header) {
             if (tab === 'active') header.innerText = "Active Dispatches";
             else if (tab === 'history') header.innerText = "Accomplished Logs";
@@ -145,8 +136,6 @@ try {
         log("Supabase Client Initialized");
     }
 } catch (err) { console.error("Init Error:", err); }
-
-// ⚡ FIX: Hardcoded ALLOWED_EMAILS array is completely deleted!
 
 // Helper function to check if the user is in the Supabase VIP table
 async function verifyAndShowApp(userEmail) {
@@ -200,23 +189,18 @@ function updateDevTeamDropdown() {
     const devSelect = document.getElementById('dev-team');
     if (devSelect && actualUserRole === 'developer') {
         devSelect.innerHTML = [...DYNAMIC_TEAMS].sort().map(t => `<option value="${t}">${t}</option>`).join('');
-        // Re-apply if we are currently impersonating
         if (currentUserRole === 'tech') applyImpersonation();
     }
 }
-
-// ⚡ NEW: The UI Bouncer Function
 function applyRBACUI() {
     const adminTabs = ['nav-pending'];
     const adminBtns = ['btn-new', 'btn-bulk'];
 
     if (currentUserRole === 'tech') {
-        // Lock it down
         adminTabs.forEach(id => document.getElementById(id)?.classList.add('hidden'));
         adminBtns.forEach(id => document.getElementById(id)?.classList.add('hidden'));
         if (['pending'].includes(currentTab)) switchTab('active');
     } else {
-        // Developer or Admin: Unlock everything
         adminTabs.forEach(id => document.getElementById(id)?.classList.remove('hidden'));
         adminBtns.forEach(id => document.getElementById(id)?.classList.remove('hidden'));
     }
@@ -226,7 +210,6 @@ function applyRBACUI() {
 if (db) {
     db.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_IN' && session) {
-            // Check database instead of hardcoded array
             verifyAndShowApp(session.user.email);
         } else if (event === 'SIGNED_OUT') {
             document.getElementById('login-screen').classList.remove('hidden');
@@ -236,7 +219,6 @@ if (db) {
 
     db.auth.getSession().then(({ data: { session } }) => {
         if (session) {
-            // Check database instead of hardcoded array
             verifyAndShowApp(session.user.email);
         }
     });
@@ -289,7 +271,6 @@ async function startSupabaseListener() {
         extractDynamicOptions();
         document.getElementById('loading-screen').classList.add('hidden');
 
-        // ⚡ CHANGED: Default to 'pending' if there are pending items, otherwise 'active'
         const hasPending = soData.some(i => i.status === 'pending');
         if (currentUserRole === 'admin') {
             window.switchTab(hasPending ? 'pending' : 'active');
@@ -309,7 +290,6 @@ async function startSupabaseListener() {
     } catch (err) { console.error("Data Error:", err); }
 }
 function extractDynamicOptions() {
-    // ⚡ THE FIX: Re-initialize BOTH Sets with their default values so they never disappear!
     DYNAMIC_TEAMS = new Set(["Team Bernie", "Team Randy"]);
     DYNAMIC_AREAS = new Set(["TAGAYTAY", "AMADEO", "MENDEZ", "BAILEN", "MARAGONDON", "ALFONSO", "MAGALLANES", "INDANG"]);
 
@@ -363,7 +343,6 @@ window.saveSO = async () => {
         }
     }
 
-    // ⚡ THE FIX: Grab all the new additional details from the inputs
     const payload = {
         name,
         team,
@@ -389,7 +368,7 @@ window.saveSO = async () => {
             payload.id = generateUUID();
             const todayStr = new Date().toLocaleDateString();
             payload.dateAdded = todayStr;
-            payload.date_reported = todayStr; // Auto-stamp reported date for manual entries
+            payload.date_reported = todayStr;
             payload.pic = false;
             payload.pwr = false;
             payload.speed = false;
@@ -412,7 +391,6 @@ window.saveSO = async () => {
     }
 }
 
-// ⚡ NEW: Approve function (Moves Pending -> Active)
 window.approveSO = async (id) => {
     const item = soData.find(i => i.id === id);
     if (!item) return;
@@ -427,14 +405,14 @@ window.approveSO = async (id) => {
     // Grab the value from the remarks input box right before we save
     const remInput = document.getElementById(`rem-${id}`);
     const currentRemarks = remInput ? remInput.value : (item.remarks || "");
-    const todayStr = new Date().toLocaleDateString(); // ⚡ FIX: Get today's date
+    const todayStr = new Date().toLocaleDateString();
 
     try {
         // Send status, remarks, AND the fresh dispatch date to Supabase
         await db.from('service_orders').update({
             status: 'active',
             remarks: currentRemarks,
-            dateAdded: todayStr, // ⚡ FIX: Stamp the date it was actually dispatched
+            dateAdded: todayStr,
             dispatched_by: window.currentUserEmail
         }).eq('id', id);
 
@@ -484,7 +462,7 @@ document.addEventListener('paste', function (e) {
         const cols = rowData.split('\t'); // Split row by Tabs (Excel formatting)
         const currentRowIdx = startRowIdx + rIdx;
 
-        // If we run out of rows while pasting, automatically create new ones!
+        // If we run out of rows while pasting, automatically create new ones
         while (tbody.children.length <= currentRowIdx) {
             window.addBulkRow();
         }
@@ -505,7 +483,7 @@ document.addEventListener('paste', function (e) {
 });
 
 window.saveBulkSO = async () => {
-    // ⚡ Grab Team and Area globally
+    // Grab Team and Area globally
     const team = document.getElementById('global-bulk-team').value;
     const area = document.getElementById('global-bulk-area').value;
 
@@ -614,7 +592,6 @@ function render(resetLimit = false) {
         if (teamFilter && item.team !== teamFilter) return false;
         if (areaFilter && item.area !== areaFilter) return false;
 
-        // ⚡ UPGRADED DATE FILTER LOGIC
         if (selectedDate) {
             let itemDateToCompare = null;
 
@@ -649,7 +626,6 @@ function render(resetLimit = false) {
         return;
     }
 
-    // ⚡ CHANGED: List Logic
     let listItems = [];
     if (currentTab === 'pending') {
         listItems = filtered.filter(i => i.status === 'pending');
@@ -668,7 +644,6 @@ function renderList(items) {
     document.getElementById('list-count').innerText = items.length;
     document.getElementById('empty-msg').className = items.length === 0 ? "text-center py-16 text-gray-400" : "hidden";
 
-    // ⚡ NEW: Generate the Bulk Action Bar for the Inbox
     let bulkBar = '';
     if (currentTab === 'pending' && items.length > 0) {
         // Build team dropdown excluding 'Unassigned'
@@ -708,7 +683,7 @@ function renderList(items) {
         if (count >= renderLimit) break;
     }
 
-    // ⚡ Inject the Bulk Bar at the top of the cards
+    // Inject the Bulk Bar at the top of the cards
     container.innerHTML = bulkBar + html;
     const btn = document.getElementById('show-more-btn');
     if (btn) {
@@ -786,7 +761,11 @@ function createCardHTML(item) {
         <div class="mt-2 mb-3 p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-600 dark-bg-sub dark-text dark-border">
             <div class="flex justify-between items-center border-b border-slate-200 pb-1.5 mb-1.5 dark-border">
                 <span class="font-bold text-slate-700 dark-text text-[11px]">
+                    ${currentAppMode === 'SLI' ? `
+                    <i class="fa-solid fa-clipboard-list text-slate-400 mr-1"></i>JO: ${item.ticket_no || 'No Ticket'} 
+                    ` : `
                     <i class="fa-solid fa-ticket text-slate-400 mr-1"></i>${item.ticket_no || 'No Ticket'} 
+                    `}
                     <span class="ml-1 font-mono text-slate-500 font-normal">(${item.account_no || 'No Acct'})</span>
                 </span>
                 
@@ -825,7 +804,6 @@ function createCardHTML(item) {
         </div>
     `;
 
-    // Removed 'fade-in' class from the main div wrapper below
     return `
     <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 ${borderColor} mb-3 dark-element">
         <div class="flex justify-between items-start mb-1">
@@ -914,7 +892,7 @@ window.openModal = (editId = null) => {
     const btn = document.getElementById('modal-btn');
 
     if (editItem) {
-        // ⚡ EDIT MODE: Load existing data into the form
+        // EDIT MODE: Load existing data into the form
         document.getElementById('modal-title').innerText = editItem.status === 'pending' ? "Assign Team" : "Edit Details";
         btn.innerText = "Save Changes";
         document.getElementById('edit-id').value = editId;
@@ -929,7 +907,7 @@ window.openModal = (editId = null) => {
         document.getElementById('input-remarks').value = editItem.remarks || "";
         document.getElementById('input-longlat').value = editItem.long_lat || "";
     } else {
-        // ⚡ NEW DISPATCH MODE: Clear all fields
+        // NEW DISPATCH MODE: Clear all fields
         document.getElementById('modal-title').innerText = "New Dispatch";
         btn.innerText = "Confirm Dispatch";
         document.getElementById('edit-id').value = "";
@@ -951,14 +929,20 @@ window.openModal = (editId = null) => {
 
     if (currentAppMode === 'SLI') {
         troubleInput.placeholder = "Package Details";
-        if (ticketInput) ticketInput.classList.add('hidden');
+        if (ticketInput) {
+            ticketInput.placeholder = "JO No.";
+            ticketInput.classList.remove('hidden');
+        }
         if (ticketAccountContainer) {
-            ticketAccountContainer.classList.remove('grid-cols-2');
-            ticketAccountContainer.classList.add('grid-cols-1');
+            ticketAccountContainer.classList.remove('grid-cols-1');
+            ticketAccountContainer.classList.add('grid-cols-2');
         }
     } else {
         troubleInput.placeholder = "Reported Trouble";
-        if (ticketInput) ticketInput.classList.remove('hidden');
+        if (ticketInput) {
+            ticketInput.placeholder = "Ticket No.";
+            ticketInput.classList.remove('hidden');
+        }
         if (ticketAccountContainer) {
             ticketAccountContainer.classList.remove('grid-cols-1');
             ticketAccountContainer.classList.add('grid-cols-2');
