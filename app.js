@@ -591,7 +591,7 @@ function render(resetLimit = false) {
     const dateInput = document.getElementById('global-date-filter').value;
     const teamFilter = document.getElementById('global-team-filter').value;
     const areaFilter = document.getElementById('global-area-filter').value;
-    const searchInput = document.getElementById('global-search').value.toLowerCase();
+    const searchInput = document.getElementById('global-search').value.toLowerCase().trim();
     const perfFilter = document.getElementById('perf-filter').value;
     let selectedDate = dateInput ? parseDateInput(dateInput) : null;
 
@@ -607,15 +607,19 @@ function render(resetLimit = false) {
         if (itemType !== currentAppMode) return false;
         if (currentUserRole === 'tech' && item.team !== currentUserTeam) return false;
         if (searchInput) {
-            const searchField = document.getElementById('search-field') ? document.getElementById('search-field').value : 'all';
-            const matchName = item.name && String(item.name).toLowerCase().includes(searchInput);
-            const matchTicket = item.ticket_no && String(item.ticket_no).toLowerCase().includes(searchInput);
-            const matchAccount = item.account_no && String(item.account_no).toLowerCase().includes(searchInput);
+            const searchField = document.getElementById('search-field') ? document.getElementById('search-field').value : 'name';
+
+            const sName = String(item.name || '').toLowerCase();
+            const sTicket = String(item.ticket_no || '').toLowerCase();
+            const sAcct = String(item.account_no || '').toLowerCase();
+
+            const matchName = sName.includes(searchInput);
+            const matchTicket = sTicket.includes(searchInput);
+            const matchAccount = sAcct.includes(searchInput);
 
             if (searchField === 'name' && !matchName) return false;
             if (searchField === 'ticket' && !matchTicket) return false;
             if (searchField === 'account' && !matchAccount) return false;
-            if (searchField === 'all' && !matchName && !matchTicket && !matchAccount) return false;
         }
         if (teamFilter && item.team !== teamFilter) return false;
         if (areaFilter && item.area !== areaFilter) return false;
@@ -639,7 +643,8 @@ function render(resetLimit = false) {
 
         if (currentTab === 'performance' && !selectedDate && !searchInput) {
             const now = new Date();
-            const d = parseSafeDate(item.dateAdded);
+            const dStr = item.status === 'done' ? (item.dateDone || item.dateAdded || item.date_reported) : (item.dateAdded || item.date_reported);
+            const d = parseSafeDate(dStr);
             if (perfFilter === 'all') return true;
             if (perfFilter === 'today') return isSameDay(d, now);
             if (perfFilter === 'week') return (now - d) < 7 * 86400000;
@@ -698,15 +703,50 @@ function renderList(items) {
     let html = '';
     let count = 0;
 
-    if (sortBy === 'aging' && currentTab === 'active') {
-        // Flat list, sorting strictly by reported date (descending timestamps / newest first if they mean date descending, or oldest first if they meant age descending. Given 'descending', we'll use B - A).
-        const sortedItems = [...items].sort((a, b) => {
-            const timeA = parseSafeDate(a.date_reported || a.dateAdded).getTime();
-            const timeB = parseSafeDate(b.date_reported || b.dateAdded).getTime();
-            return timeB - timeA;
+    if (sortBy === 'aging') {
+        const itemsWithIndex = items.map((item, index) => ({ ...item, _listIndex: index }));
+        const sortedItems = itemsWithIndex.sort((a, b) => {
+            let timeA = parseSafeDate(a.date_reported || a.dateAdded).getTime();
+            let timeB = parseSafeDate(b.date_reported || b.dateAdded).getTime();
+
+            if (a.created_at) timeA = new Date(a.created_at).getTime();
+            if (b.created_at) timeB = new Date(b.created_at).getTime();
+
+            if (timeA !== timeB) return timeA - timeB; // Ascending -> Oldest First
+            return a._listIndex - b._listIndex;
         });
 
-        html += `<div class="sticky-date py-2 px-1 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase flex justify-between items-center mt-4"><span><i class="fa-solid fa-clock-rotate-left mr-1"></i> Aging Tickets (Descending)</span><span class="bg-gray-200 text-gray-600 px-2 rounded-full text-[10px]">${sortedItems.length}</span></div>`;
+        html += `<div class="sticky-date py-2 px-1 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase flex justify-between items-center mt-4"><span><i class="fa-solid fa-clock-rotate-left mr-1"></i> Aging Tickets (Oldest First)</span><span class="bg-gray-200 text-gray-600 px-2 rounded-full text-[10px]">${sortedItems.length}</span></div>`;
+        for (const item of sortedItems) {
+            if (count >= renderLimit) break;
+            html += createCardHTML(item);
+            count++;
+        }
+    } else if (sortBy === 'date') {
+        const itemsWithIndex = items.map((item, index) => ({ ...item, _listIndex: index }));
+        const sortedItems = itemsWithIndex.sort((a, b) => {
+            let timeA = parseSafeDate(a.date_reported || a.dateAdded).getTime();
+            let timeB = parseSafeDate(b.date_reported || b.dateAdded).getTime();
+            if (timeA !== timeB) return timeA - timeB; // Ascending -> Oldest First
+            return a._listIndex - b._listIndex;
+        });
+
+        html += `<div class="sticky-date py-2 px-1 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase flex justify-between items-center mt-4"><span><i class="fa-regular fa-calendar mr-1"></i> Sorted by Date</span><span class="bg-gray-200 text-gray-600 px-2 rounded-full text-[10px]">${sortedItems.length}</span></div>`;
+        for (const item of sortedItems) {
+            if (count >= renderLimit) break;
+            html += createCardHTML(item);
+            count++;
+        }
+    } else if (sortBy === 'dispatch') {
+        const itemsWithIndex = items.map((item, index) => ({ ...item, _listIndex: index }));
+        const sortedItems = itemsWithIndex.sort((a, b) => {
+            let timeA = parseSafeDate(a.dateAdded || a.date_reported || a.dateDone).getTime();
+            let timeB = parseSafeDate(b.dateAdded || b.date_reported || b.dateDone).getTime();
+            if (timeA !== timeB) return timeB - timeA; // Descending -> Newest First
+            return b._listIndex - a._listIndex;
+        });
+
+        html += `<div class="sticky-date py-2 px-1 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase flex justify-between items-center mt-4"><span><i class="fa-solid fa-truck-fast mr-1"></i> Sorted by Dispatch Date</span><span class="bg-gray-200 text-gray-600 px-2 rounded-full text-[10px]">${sortedItems.length}</span></div>`;
         for (const item of sortedItems) {
             if (count >= renderLimit) break;
             html += createCardHTML(item);
@@ -904,6 +944,7 @@ function createCardHTML(item) {
 }
 
 function renderPerformance(data) {
+    if (currentTab !== 'performance') return;
     const stats = { total: data.length, done: 0, teams: {}, areas: {} };
     data.forEach(item => {
         if (!stats.teams[item.team]) stats.teams[item.team] = { total: 0, done: 0 };
@@ -974,8 +1015,8 @@ function renderCharts(data) {
     }
 
     const troubleCounts = {};
-    data.forEach(item => {
-        if (item.status === 'pending') return;
+    soData.forEach(item => {
+        if ((item.type || 'SLR') !== currentAppMode) return;
         const t = (item.trouble_report && item.trouble_report.trim() !== '') ? item.trouble_report : 'Unspecified';
         troubleCounts[t] = (troubleCounts[t] || 0) + 1;
     });
