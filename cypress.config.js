@@ -4,7 +4,17 @@ const { defineConfig } = require("cypress");
 module.exports = defineConfig({
   e2e: {
     setupNodeEvents(on, config) {
-      // implement node event listeners here
+      if (!config.browsers) config.browsers = [];
+      config.browsers.push({
+        name: 'brave',
+        channel: 'stable',
+        family: 'chromium',
+        displayName: 'Brave',
+        version: '120',
+        path: '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
+        majorVersion: 120
+      });
+      return config;
     },
   },
   // We removed the hardcoded 'env' block. 

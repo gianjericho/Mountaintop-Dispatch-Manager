@@ -30,12 +30,30 @@ let currentTab = 'active';
 let currentAppMode = 'SLR';
 let renderLimit = 50;
 let db = null;
+let lineChartInstance = null;
+let pieChartInstance = null;
 
 // ============================================
 // 3. UTILITIES & HELPERS (No Changes)
 // ============================================
 function parseDateInput(input) { if (!input) return null; const parts = input.split('-'); return new Date(parts[0], parts[1] - 1, parts[2]); }
-function isSameDay(d1, d2) { if (!d1 || !d2) return false; const date1 = new Date(d1); const date2 = new Date(d2); return date1.getFullYear() === date2.getFullYear() && date1.getMonth() === date2.getMonth() && date1.getDate() === date2.getDate(); }
+function parseSafeDate(dateStr) {
+    if (!dateStr) return new Date(0);
+    if (dateStr instanceof Date) return dateStr;
+    let d = new Date(dateStr);
+    if (!isNaN(d.getTime())) return d;
+    if (typeof dateStr === 'string') {
+        const parts = dateStr.split(/[-/]/);
+        if (parts.length === 3) {
+            if (parts[0].length === 4) return new Date(`${parts[0]}-${parts[1]}-${parts[2]}`);
+            let p1 = parseInt(parts[0], 10), p2 = parseInt(parts[1], 10), y = parseInt(parts[2], 10);
+            if (p1 > 12) { let t = p1; p1 = p2; p2 = t; }
+            d = new Date(`${y}-${p1}-${p2}`);
+        }
+    }
+    return isNaN(d.getTime()) ? new Date(0) : d;
+}
+function isSameDay(d1, d2) { if (!d1 || !d2) return false; const date1 = parseSafeDate(d1); const date2 = parseSafeDate(d2); return date1.getFullYear() === date2.getFullYear() && date1.getMonth() === date2.getMonth() && date1.getDate() === date2.getDate(); }
 
 function renderMiniCard(t, d, tot) {
     const isSLR = currentAppMode === 'SLR'; const color = isSLR ? 'green' : 'indigo'; const p = tot === 0 ? 0 : Math.round((d / tot) * 100); const c = p === 100 ? `text-${color}-600` : (p > 50 ? `text-${color}-600` : 'text-orange-500');
@@ -588,7 +606,17 @@ function render(resetLimit = false) {
         const itemType = item.type || 'SLR';
         if (itemType !== currentAppMode) return false;
         if (currentUserRole === 'tech' && item.team !== currentUserTeam) return false;
-        if (searchInput && !item.name.toLowerCase().includes(searchInput)) return false;
+        if (searchInput) {
+            const searchField = document.getElementById('search-field') ? document.getElementById('search-field').value : 'all';
+            const matchName = item.name && item.name.toLowerCase().includes(searchInput);
+            const matchTicket = item.ticket_no && item.ticket_no.toLowerCase().includes(searchInput);
+            const matchAccount = item.account_no && item.account_no.toLowerCase().includes(searchInput);
+
+            if (searchField === 'name' && !matchName) return false;
+            if (searchField === 'ticket' && !matchTicket) return false;
+            if (searchField === 'account' && !matchAccount) return false;
+            if (searchField === 'all' && !matchName && !matchTicket && !matchAccount) return false;
+        }
         if (teamFilter && item.team !== teamFilter) return false;
         if (areaFilter && item.area !== areaFilter) return false;
 
@@ -611,7 +639,7 @@ function render(resetLimit = false) {
 
         if (currentTab === 'performance' && !selectedDate && !searchInput) {
             const now = new Date();
-            const d = new Date(item.dateAdded);
+            const d = parseSafeDate(item.dateAdded);
             if (perfFilter === 'all') return true;
             if (perfFilter === 'today') return isSameDay(d, now);
             if (perfFilter === 'week') return (now - d) < 7 * 86400000;
@@ -665,22 +693,50 @@ function renderList(items) {
         </div>`;
     }
 
-    const groups = {};
-    items.forEach(item => { const dateKey = currentTab === 'active' ? item.dateAdded : (item.dateDone || "Pending Requests"); if (!groups[dateKey]) groups[dateKey] = []; groups[dateKey].push(item); });
-    const sortedDates = Object.keys(groups).sort((a, b) => new Date(a) - new Date(b));
+    const sortBy = document.getElementById('sort-by') ? document.getElementById('sort-by').value : 'default';
 
     let html = '';
     let count = 0;
-    for (const date of sortedDates) {
-        if (currentTab !== 'pending') {
-            html += `<div class="sticky-date py-2 px-1 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase flex justify-between items-center mt-4"><span><i class="fa-regular fa-calendar mr-1"></i> ${date}</span><span class="bg-gray-200 text-gray-600 px-2 rounded-full text-[10px]">${groups[date].length}</span></div>`;
-        }
-        for (const item of groups[date]) {
+
+    if (sortBy === 'aging' && currentTab === 'active') {
+        // Flat list, sorting strictly by reported date (oldest first)
+        const sortedItems = [...items].sort((a, b) => {
+            const timeA = parseSafeDate(a.date_reported || a.dateAdded).getTime();
+            const timeB = parseSafeDate(b.date_reported || b.dateAdded).getTime();
+            return timeA - timeB;
+        });
+
+        html += `<div class="sticky-date py-2 px-1 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase flex justify-between items-center mt-4"><span><i class="fa-solid fa-clock-rotate-left mr-1"></i> Aging Tickets (Oldest First)</span><span class="bg-gray-200 text-gray-600 px-2 rounded-full text-[10px]">${sortedItems.length}</span></div>`;
+        for (const item of sortedItems) {
             if (count >= renderLimit) break;
             html += createCardHTML(item);
             count++;
         }
-        if (count >= renderLimit) break;
+    } else {
+        // Default Grouping by Date
+        const groups = {};
+        items.forEach(item => {
+            const dateKey = currentTab === 'active' ? item.dateAdded : (item.dateDone || "Pending Requests");
+            if (!groups[dateKey]) groups[dateKey] = [];
+            groups[dateKey].push(item);
+        });
+        const sortedDates = Object.keys(groups).sort((a, b) => {
+            if (a === "Pending Requests" || a === "Unknown Date") return 1;
+            if (b === "Pending Requests" || b === "Unknown Date") return -1;
+            return new Date(a) - new Date(b); // Oldest group first
+        });
+
+        for (const date of sortedDates) {
+            if (currentTab !== 'pending') {
+                html += `<div class="sticky-date py-2 px-1 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase flex justify-between items-center mt-4"><span><i class="fa-regular fa-calendar mr-1"></i> ${date}</span><span class="bg-gray-200 text-gray-600 px-2 rounded-full text-[10px]">${groups[date].length}</span></div>`;
+            }
+            for (const item of groups[date]) {
+                if (count >= renderLimit) break;
+                html += createCardHTML(item);
+                count++;
+            }
+            if (count >= renderLimit) break;
+        }
     }
 
     // Inject the Bulk Bar at the top of the cards
@@ -864,6 +920,88 @@ function renderPerformance(data) {
     document.getElementById('global-percent').innerText = percent + '%'; document.getElementById('global-done').innerText = stats.done; document.getElementById('global-total').innerText = stats.total; document.getElementById('global-bar').style.width = percent + '%';
     document.getElementById('team-stats-container').innerHTML = Object.entries(stats.teams).map(([n, d]) => renderMiniCard(n, d.done, d.total)).join('');
     document.getElementById('area-stats-container').innerHTML = Object.entries(stats.areas).map(([n, d]) => renderAreaRow(n, d.done, d.total)).join('');
+    renderCharts(data);
+}
+
+function renderCharts(data) {
+    if (!window.Chart) return;
+    const isSLR = currentAppMode === 'SLR';
+    const primaryColor = isSLR ? '#16a34a' : '#4f46e5';
+    const primaryBg = isSLR ? 'rgba(22, 163, 74, 0.2)' : 'rgba(79, 70, 229, 0.2)';
+
+    const last7Days = [];
+    const resolvedCounts = [];
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        last7Days.push({
+            key: `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`,
+            label: `${d.getMonth() + 1}/${d.getDate()}`
+        });
+        resolvedCounts.push(0);
+    }
+
+    soData.forEach(item => {
+        if (item.status === 'done' && (item.type || 'SLR') === currentAppMode) {
+            if (!item.dateDone) return;
+            const doneObj = parseSafeDate(item.dateDone);
+            const dateKey = `${doneObj.getFullYear()}-${doneObj.getMonth() + 1}-${doneObj.getDate()}`;
+            const matchIndex = last7Days.findIndex(d => d.key === dateKey);
+            if (matchIndex !== -1) resolvedCounts[matchIndex]++;
+        }
+    });
+
+    const ctxLine = document.getElementById('lineChart');
+    if (ctxLine) {
+        if (lineChartInstance) lineChartInstance.destroy();
+        lineChartInstance = new Chart(ctxLine, {
+            type: 'line',
+            data: {
+                labels: last7Days.map(d => d.label),
+                datasets: [{
+                    label: 'Resolved Tickets',
+                    data: resolvedCounts,
+                    borderColor: primaryColor,
+                    backgroundColor: primaryBg,
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 3
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+        });
+    }
+
+    const troubleCounts = {};
+    data.forEach(item => {
+        if (item.status === 'pending') return;
+        const t = (item.trouble_report && item.trouble_report.trim() !== '') ? item.trouble_report : 'Unspecified';
+        troubleCounts[t] = (troubleCounts[t] || 0) + 1;
+    });
+
+    const troubleLabels = Object.keys(troubleCounts);
+    const troubleData = Object.values(troubleCounts);
+    const bgColors = ['#f87171', '#fb923c', '#fbbf24', '#a3e635', '#4ade80', '#34d399', '#2dd4bf', '#38bdf8', '#60a5fa', '#818cf8', '#a78bfa', '#c084fc', '#e879f9', '#f472b6', '#fb7185'];
+
+    const ctxPie = document.getElementById('pieChart');
+    if (ctxPie) {
+        if (pieChartInstance) pieChartInstance.destroy();
+        const isDark = document.body.classList.contains('dark-mode');
+        pieChartInstance = new Chart(ctxPie, {
+            type: 'doughnut',
+            data: {
+                labels: troubleLabels,
+                datasets: [{
+                    data: troubleData,
+                    backgroundColor: bgColors.slice(0, troubleLabels.length),
+                    borderWidth: 1,
+                    borderColor: isDark ? '#1e293b' : '#ffffff'
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 }, color: isDark ? '#94a3b8' : '#64748b' } } } }
+        });
+    }
 }
 
 window.handleDropdownChange = (type) => {

@@ -1,0 +1,62 @@
+
+DevTools listening on ws://127.0.0.1:63059/devtools/browser/7fbe7959-8e39-4fea-ab83-8e813242f017
+Warning: The allowCypressEnv configuration option is enabled. This allows any browser code to read values from Cypress.env(). This is insecure and will be removed in a future major version.
+
+1. Replace Cypress.env() calls with cy.env() (for sensitive values) or Cypress.expose() (for public configuration)
+2. Set allowCypressEnv: false in your Cypress configuration to disable Cypress.env()
+
+Learn more: https://on.cypress.io/cypress-env-migration
+
+
+==========================
+
+  (Run Starting)
+
+  ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │ Cypress:        15.10.0                                                                        │
+  │ Browser:        Brave 120 (headless)                                                           │
+  │ Node Version:   v24.14.0 (/Users/gian/.nvm/versions/node/v24.14.0/bin/node)                    │
+  │ Specs:          1 found (tech_rbac_test.cy.js)                                                 │
+  │ Searched:       cypress/e2e/tech_rbac_test.cy.js                                               │
+  └────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                    
+  Running:  tech_rbac_test.cy.js                                                            (1 of 1)
+
+
+  RBAC Verification - Field Tech Role
+    ✓ 1. Tech should NOT see Admin Tabs or Buttons (2140ms)
+    ✓ 2. Tech should NOT be able to delete tickets (1265ms)
+
+
+  2 passing (4s)
+
+
+  (Results)
+
+  ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │ Tests:        2                                                                                │
+  │ Passing:      2                                                                                │
+  │ Failing:      0                                                                                │
+  │ Pending:      0                                                                                │
+  │ Skipped:      0                                                                                │
+  │ Screenshots:  0                                                                                │
+  │ Video:        false                                                                            │
+  │ Duration:     4 seconds                                                                        │
+  │ Spec Ran:     tech_rbac_test.cy.js                                                             │
+  └────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+
+==========================
+
+  (Run Finished)
+
+
+       Spec                                              Tests  Passing  Failing  Pending  Skipped  
+  ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │ ✔  tech_rbac_test.cy.js                     00:04        2        2        -        -        - │
+  └────────────────────────────────────────────────────────────────────────────────────────────────┘
+    ✔  All specs passed!                        00:04        2        2        -        -        -  
+
