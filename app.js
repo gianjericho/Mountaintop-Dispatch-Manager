@@ -608,9 +608,9 @@ function render(resetLimit = false) {
         if (currentUserRole === 'tech' && item.team !== currentUserTeam) return false;
         if (searchInput) {
             const searchField = document.getElementById('search-field') ? document.getElementById('search-field').value : 'all';
-            const matchName = item.name && item.name.toLowerCase().includes(searchInput);
-            const matchTicket = item.ticket_no && item.ticket_no.toLowerCase().includes(searchInput);
-            const matchAccount = item.account_no && item.account_no.toLowerCase().includes(searchInput);
+            const matchName = item.name && String(item.name).toLowerCase().includes(searchInput);
+            const matchTicket = item.ticket_no && String(item.ticket_no).toLowerCase().includes(searchInput);
+            const matchAccount = item.account_no && String(item.account_no).toLowerCase().includes(searchInput);
 
             if (searchField === 'name' && !matchName) return false;
             if (searchField === 'ticket' && !matchTicket) return false;
@@ -699,14 +699,14 @@ function renderList(items) {
     let count = 0;
 
     if (sortBy === 'aging' && currentTab === 'active') {
-        // Flat list, sorting strictly by reported date (oldest first)
+        // Flat list, sorting strictly by reported date (descending timestamps / newest first if they mean date descending, or oldest first if they meant age descending. Given 'descending', we'll use B - A).
         const sortedItems = [...items].sort((a, b) => {
             const timeA = parseSafeDate(a.date_reported || a.dateAdded).getTime();
             const timeB = parseSafeDate(b.date_reported || b.dateAdded).getTime();
-            return timeA - timeB;
+            return timeB - timeA;
         });
 
-        html += `<div class="sticky-date py-2 px-1 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase flex justify-between items-center mt-4"><span><i class="fa-solid fa-clock-rotate-left mr-1"></i> Aging Tickets (Oldest First)</span><span class="bg-gray-200 text-gray-600 px-2 rounded-full text-[10px]">${sortedItems.length}</span></div>`;
+        html += `<div class="sticky-date py-2 px-1 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase flex justify-between items-center mt-4"><span><i class="fa-solid fa-clock-rotate-left mr-1"></i> Aging Tickets (Descending)</span><span class="bg-gray-200 text-gray-600 px-2 rounded-full text-[10px]">${sortedItems.length}</span></div>`;
         for (const item of sortedItems) {
             if (count >= renderLimit) break;
             html += createCardHTML(item);
