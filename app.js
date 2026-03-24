@@ -155,11 +155,23 @@ try {
     }
 } catch (err) { console.error("Init Error:", err); }
 
+let appShown = false;
+let isVerifying = false;
+
 // Helper function to check if the user is in the Supabase VIP table
 async function verifyAndShowApp(userEmail) {
+    if (appShown || isVerifying) return;
+    isVerifying = true;
     window.currentUserEmail = userEmail;
     try {
         const { data, error } = await db.from('authorized_emails').select('email, role, team').eq('email', userEmail);
+
+        if (error) {
+            console.error("Verification Network Error:", error);
+            alert("Network error: Could not verify your account. Please check your connection and refresh the page.");
+            isVerifying = false;
+            return;
+        }
 
         if (data && data.length > 0) {
             actualUserRole = data[0].role || 'tech';
@@ -179,8 +191,9 @@ async function verifyAndShowApp(userEmail) {
             logout();
         }
     } catch (err) {
-        console.error("Verification error:", err);
-        logout();
+        console.error("Verification Exception:", err);
+        alert("System error: Could not verify your account. Please check your connection and refresh the page.");
+        isVerifying = false;
     }
 }
 
@@ -263,6 +276,7 @@ window.logout = async () => {
 };
 
 function showApp() {
+    appShown = true;
     document.getElementById('login-screen').classList.add('hidden');
     document.getElementById('main-app').classList.remove('hidden');
     if (db) startSupabaseListener();
@@ -970,27 +984,88 @@ function renderCharts(data) {
     const primaryColor = isSLR ? '#16a34a' : '#4f46e5';
     const primaryBg = isSLR ? 'rgba(22, 163, 74, 0.2)' : 'rgba(79, 70, 229, 0.2)';
 
-    const last7Days = [];
-    const resolvedCounts = [];
-    for (let i = 6; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        last7Days.push({
-            key: `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`,
-            label: `${d.getMonth() + 1}/${d.getDate()}`
-        });
-        resolvedCounts.push(0);
-    }
+    // Always derive the chart time range from the actual filtered data — not DOM filters.
+    // This ensures team/area/search/time filters all reflect correctly in charts.
+    const dateInput = document.getElementById('global-date-filter').value;
+    const searchInput = document.getElementById('global-search').value;
+    const perfFilter = document.getElementById('perf-filter').value;
 
-    soData.forEach(item => {
-        if (item.status === 'done' && (item.type || 'SLR') === currentAppMode) {
-            if (!item.dateDone) return;
-            const doneObj = parseSafeDate(item.dateDone);
-            const dateKey = `${doneObj.getFullYear()}-${doneObj.getMonth() + 1}-${doneObj.getDate()}`;
-            const matchIndex = last7Days.findIndex(d => d.key === dateKey);
-            if (matchIndex !== -1) resolvedCounts[matchIndex]++;
+    let minDate = new Date();
+    let maxDate = new Date();
+    let minTime = Infinity;
+    let maxTime = -Infinity;
+
+    data.forEach(item => {
+        const dStr = item.status === 'done'
+            ? (item.dateDone || item.dateAdded || item.date_reported)
+            : (item.dateAdded || item.date_reported);
+        if (dStr) {
+            const t = parseSafeDate(dStr).getTime();
+            if (t < minTime) minTime = t;
+            if (t > maxTime) maxTime = t;
         }
     });
+
+    if (minTime !== Infinity) minDate = new Date(minTime);
+    if (maxTime !== -Infinity) maxDate = new Date(maxTime);
+
+    minDate.setHours(0, 0, 0, 0);
+    maxDate.setHours(23, 59, 59, 999);
+
+    const labelsData = [];
+    const resolvedCountsData = [];
+
+    let diffDays = 0;
+    if (minDate <= maxDate) {
+        diffDays = Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24));
+    }
+
+    if (diffDays > 60) {
+        const grouped = {};
+        data.forEach(item => {
+            if (item.status === 'done') {
+                const d = parseSafeDate(item.dateDone || item.dateAdded || item.date_reported);
+                const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                grouped[k] = (grouped[k] || 0) + 1;
+            }
+        });
+        const sortedK = Object.keys(grouped).sort();
+        sortedK.forEach(k => {
+            const [y, m] = k.split('-');
+            labelsData.push(`${m}/${y}`);
+            resolvedCountsData.push(grouped[k]);
+        });
+    } else {
+        const grouped = {};
+        data.forEach(item => {
+            if (item.status === 'done') {
+                const d = parseSafeDate(item.dateDone || item.dateAdded || item.date_reported);
+                const k = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+                grouped[k] = (grouped[k] || 0) + 1;
+            }
+        });
+
+        const safeDiff = isNaN(diffDays) ? 0 : Math.min(diffDays, 60);
+        for (let i = 0; i <= safeDiff; i++) {
+            const d = new Date(minDate);
+            d.setDate(d.getDate() + i);
+            const k = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+            labelsData.push(`${d.getMonth() + 1}/${d.getDate()}`);
+            resolvedCountsData.push(grouped[k] || 0);
+        }
+    }
+
+    const lineTitle = document.getElementById('line-chart-title');
+    if (lineTitle) {
+        let filterText = 'All Time';
+        if (dateInput) filterText = 'Filtered Date';
+        else if (searchInput) filterText = 'Search Results';
+        else {
+            const sel = document.getElementById('perf-filter');
+            if (sel && sel.options[sel.selectedIndex]) filterText = sel.options[sel.selectedIndex].text;
+        }
+        lineTitle.innerText = `Tickets Resolved (${filterText})`;
+    }
 
     const ctxLine = document.getElementById('lineChart');
     if (ctxLine) {
@@ -998,16 +1073,16 @@ function renderCharts(data) {
         lineChartInstance = new Chart(ctxLine, {
             type: 'line',
             data: {
-                labels: last7Days.map(d => d.label),
+                labels: labelsData,
                 datasets: [{
                     label: 'Resolved Tickets',
-                    data: resolvedCounts,
+                    data: resolvedCountsData,
                     borderColor: primaryColor,
                     backgroundColor: primaryBg,
                     borderWidth: 2,
                     fill: true,
                     tension: 0.3,
-                    pointRadius: 3
+                    pointRadius: diffDays > 30 ? 1 : 3
                 }]
             },
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
@@ -1015,8 +1090,7 @@ function renderCharts(data) {
     }
 
     const troubleCounts = {};
-    soData.forEach(item => {
-        if ((item.type || 'SLR') !== currentAppMode) return;
+    data.forEach(item => {
         const t = (item.trouble_report && item.trouble_report.trim() !== '') ? item.trouble_report : 'Unspecified';
         troubleCounts[t] = (troubleCounts[t] || 0) + 1;
     });
@@ -1024,6 +1098,18 @@ function renderCharts(data) {
     const troubleLabels = Object.keys(troubleCounts);
     const troubleData = Object.values(troubleCounts);
     const bgColors = ['#f87171', '#fb923c', '#fbbf24', '#a3e635', '#4ade80', '#34d399', '#2dd4bf', '#38bdf8', '#60a5fa', '#818cf8', '#a78bfa', '#c084fc', '#e879f9', '#f472b6', '#fb7185'];
+
+    const pieTitle = document.getElementById('pie-chart-title');
+    if (pieTitle) {
+        let filterText = 'All Time';
+        if (dateInput) filterText = 'Filtered Date';
+        else if (searchInput) filterText = 'Search Results';
+        else {
+            const sel = document.getElementById('perf-filter');
+            if (sel && sel.options[sel.selectedIndex]) filterText = sel.options[sel.selectedIndex].text;
+        }
+        pieTitle.innerText = `Trouble Types (${filterText})`;
+    }
 
     const ctxPie = document.getElementById('pieChart');
     if (ctxPie) {
