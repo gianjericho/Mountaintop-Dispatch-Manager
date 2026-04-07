@@ -886,8 +886,8 @@ function createCardHTML(item) {
                 </div>
             </div>
             
-            <div class="flex justify-between items-center mb-1.5">
-                <div class="truncate font-medium flex-1" title="${item.address || ''}">
+            <div class="flex justify-between items-start mb-1.5">
+                <div class="font-medium flex-1 break-words leading-tight" title="${item.address || ''}">
                     <i class="fa-solid fa-location-dot mr-1.5 text-slate-400"></i>${item.address || 'No Address Provided'}
                 </div>
                 ${mapElement}
