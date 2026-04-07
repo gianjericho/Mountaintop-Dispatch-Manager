@@ -23,7 +23,7 @@ let currentUserRole = 'admin';
 let currentUserTeam = null;
 let soData = [];
 let DYNAMIC_TEAMS = new Set(["Team Bernie", "Team Randy"]);
-let DYNAMIC_AREAS = new Set(["TAGAYTAY", "AMADEO", "MENDEZ", "BAILEN", "MARAGONDON", "ALFONSO", "MAGALLANES", "INDANG"]);
+let DYNAMIC_AREAS = new Set(["TAGAYTAY", "AMADEO", "MENDEZ", "BAILEN", "MARAGONDON", "ALFONSO", "MAGALLANES", "INDANG", "TERNATE"]);
 let authTeamsList = [];
 
 let currentTab = 'active';
@@ -323,13 +323,12 @@ async function startSupabaseListener() {
 }
 function extractDynamicOptions() {
     DYNAMIC_TEAMS = new Set(["Team Bernie", "Team Randy"]);
-    DYNAMIC_AREAS = new Set(["TAGAYTAY", "AMADEO", "MENDEZ", "BAILEN", "MARAGONDON", "ALFONSO", "MAGALLANES", "INDANG"]);
+    DYNAMIC_AREAS = new Set(["TAGAYTAY", "AMADEO", "MENDEZ", "BAILEN", "MARAGONDON", "ALFONSO", "MAGALLANES", "INDANG", "TERNATE"]);
 
     if (typeof authTeamsList !== 'undefined') authTeamsList.forEach(t => DYNAMIC_TEAMS.add(t));
 
     soData.forEach(item => {
         if (item.team && item.team !== 'Unassigned') DYNAMIC_TEAMS.add(item.team);
-        if (item.area && item.area !== 'Unknown') DYNAMIC_AREAS.add(item.area);
     });
 
     populateFilterDropdown('global-team-filter', DYNAMIC_TEAMS, "All Teams");
@@ -928,7 +927,7 @@ function createCardHTML(item) {
             </div>
             <div class="flex gap-1 shrink-0">
                 <button onclick="openModal('${item.id}')" class="text-gray-300 hover:text-${color}-600 p-1"><i class="fa-solid fa-pen"></i></button>
-                ${currentUserRole === 'admin' ? `<button onclick="deleteSO('${item.id}')" class="text-gray-300 hover:text-red-500 p-1"><i class="fa-solid fa-trash"></i></button>` : ''}
+                ${['admin', 'developer'].includes(currentUserRole) ? `<button onclick="deleteSO('${item.id}')" class="text-gray-300 hover:text-red-500 p-1"><i class="fa-solid fa-trash"></i></button>` : ''}
             </div>
         </div>
 

@@ -12,3 +12,6 @@ cypress.env
 # Editor directories (optional, keeps repo clean if you use VS Code)
 .vscode/
 .idea/
+
+# Prompting Guide
+.prompting_guide.md
