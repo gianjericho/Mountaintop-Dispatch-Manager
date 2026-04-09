@@ -7,7 +7,7 @@
 
 ## Table: authorized_emails
 *Handles user permissions and role-based access control (RBAC).*
-- `id`: uuid (Primary Key)
+- `id`: bigint (Primary Key - Auto-incrementing)
 - `email`: text (Unique - used for Google Auth verification)
 - `role`: text ('developer', 'admin', 'tech')
 - `team`: text (Nullable - assigned team name for 'tech' users)

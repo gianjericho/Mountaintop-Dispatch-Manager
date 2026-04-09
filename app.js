@@ -117,7 +117,7 @@ window.switchTab = (tab) => {
         const header = document.getElementById('list-header');
 
         if (header) {
-            if (tab === 'active') header.innerText = "Active Dispatches";
+            if (tab === 'active') header.innerText = "Dispatched";
             else if (tab === 'history') header.innerText = "Accomplished Logs";
             else if (tab === 'pending') header.innerText = "Inbox (Pending Approval)";
         }
@@ -460,6 +460,7 @@ window.approveSO = async (id) => {
 }
 
 window.deleteSO = async (id) => { if (!confirm("Delete this record permanently?")) return; try { const { error } = await db.from('service_orders').delete().eq('id', id); if (error) throw error; soData = soData.filter(i => i.id !== id); render(false); } catch (e) { alert("Delete Failed: " + e.message); } }
+window.rescheduleSO = async (id) => { if (!confirm("Return this ticket to the Inbox for rescheduling?")) return; try { const { error } = await db.from('service_orders').update({ status: 'pending', dateAdded: null }).eq('id', id); if (error) throw error; const index = soData.findIndex(i => i.id === id); if (index !== -1) { soData[index].status = 'pending'; soData[index].dateAdded = null; } render(false); } catch (e) { alert("Reschedule Failed: " + e.message); } }
 window.renameTeam = async (oldName) => { const newName = prompt(`Rename "${oldName}" to:`, oldName); if (!newName || newName === oldName) return; if (!confirm(`Rename "${oldName}" to "${newName}" everywhere?`)) return; try { const { error } = await db.from('service_orders').update({ team: newName }).eq('team', oldName); if (error) throw error; soData.forEach(item => { if (item.team === oldName) item.team = newName; }); extractDynamicOptions(); render(false); toggleSettings(); } catch (e) { alert("Rename Failed: " + e.message); } }
 window.deleteTeam = async (teamName) => { if (!confirm(`Delete ALL records for "${teamName}"?`)) return; try { const { error } = await db.from('service_orders').delete().eq('team', teamName); if (error) throw error; soData = soData.filter(item => item.team !== teamName); extractDynamicOptions(); render(false); toggleSettings(); } catch (e) { alert("Delete Failed: " + e.message); } }
 window.markDone = async (id) => { const itemIndex = soData.findIndex(i => i.id == id); if (itemIndex === -1) return; const rem = document.getElementById(`rem-${id}`).value || soData[itemIndex].tech_remarks || ""; const dateDone = new Date().toLocaleDateString(); try { await db.from('service_orders').update({ status: 'done', tech_remarks: rem, dateDone: dateDone }).eq('id', id); soData[itemIndex].status = 'done'; soData[itemIndex].tech_remarks = rem; soData[itemIndex].dateDone = dateDone; render(false); } catch (e) { console.error(e); } }
@@ -898,6 +899,11 @@ function createCardHTML(item) {
                 <i class="fa-solid fa-phone mr-1.5 text-slate-400"></i>
                 <span class="font-medium">${item.contact_number || 'No Contact'}</span>
             </div>
+            ${item.facility ? `
+            <div class="flex items-center mt-1 mb-1">
+                <i class="fa-solid fa-tower-broadcast mr-1.5 text-slate-400"></i>
+                <span class="font-medium text-slate-500">${item.facility}</span>
+            </div>` : ''}
             
             ${item.trouble_report ? `
             ${currentAppMode === 'SLI' ? `
@@ -927,6 +933,7 @@ function createCardHTML(item) {
             </div>
             <div class="flex gap-1 shrink-0">
                 <button onclick="openModal('${item.id}')" class="text-gray-300 hover:text-${color}-600 p-1"><i class="fa-solid fa-pen"></i></button>
+                ${(!isPending && !isDone && ['admin', 'developer'].includes(currentUserRole)) ? `<button onclick="rescheduleSO('${item.id}')" class="text-gray-300 hover:text-amber-500 p-1" title="Reschedule (Return to Inbox)"><i class="fa-solid fa-rotate-left"></i></button>` : ''}
                 ${['admin', 'developer'].includes(currentUserRole) ? `<button onclick="deleteSO('${item.id}')" class="text-gray-300 hover:text-red-500 p-1"><i class="fa-solid fa-trash"></i></button>` : ''}
             </div>
         </div>
