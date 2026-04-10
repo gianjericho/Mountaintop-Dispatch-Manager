@@ -18,6 +18,7 @@
 - `name`: text (Subscriber Name)
 - `team`: text (Assigned Team Name or 'Unassigned')
 - `area`: text (e.g., TAGAYTAY, AMADEO)
+- `barangay`: text (Dynamic sub-area dependant on the area field)
 - `status`: text ('pending', 'active', 'done')
 - `type`: text ('SLR' or 'SLI')
 - `date_reported`: text (Original date from monitoring sheet)

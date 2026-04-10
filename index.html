@@ -108,16 +108,20 @@
                         class="w-2/3 text-sm font-bold text-gray-700 bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-blue-100 dark-input">
                 </div>
 
-                <div class="grid grid-cols-3 gap-2">
+                <div class="grid grid-cols-4 gap-2">
                     <input type="date" id="global-date-filter" onchange="render(true)"
                         class="w-full text-xs font-bold text-gray-700 bg-gray-50 border border-gray-200 rounded-lg p-2 outline-none dark-input">
                     <select id="global-team-filter" onchange="render(true)"
                         class="w-full text-xs font-bold text-gray-700 bg-gray-50 border border-gray-200 rounded-lg p-2 outline-none dark-input">
                         <option value="">All Teams</option>
                     </select>
-                    <select id="global-area-filter" onchange="render(true)"
+                    <select id="global-area-filter" onchange="updateBarangaysDropdown('global-area-filter', 'global-barangay-filter'); render(true)"
                         class="w-full text-xs font-bold text-gray-700 bg-gray-50 border border-gray-200 rounded-lg p-2 outline-none dark-input">
                         <option value="">All Areas</option>
+                    </select>
+                    <select id="global-barangay-filter" onchange="render(true)"
+                        class="w-full text-xs font-bold text-gray-700 bg-gray-50 border border-gray-200 rounded-lg p-2 outline-none dark-input">
+                        <option value="">All Barangays</option>
                     </select>
                 </div>
             </div>
@@ -239,19 +243,28 @@
                         class="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 outline-none transition dark-input">
                 </div>
 
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-2 gap-3 mb-3">
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Area <span
                                 class="text-red-500">*</span></label>
-                        <select id="input-area"
+                        <select id="input-area" onchange="updateBarangaysDropdown('input-area', 'input-barangay')"
                             class="w-full border border-gray-300 rounded-lg p-2.5 bg-white outline-none dark-input"></select>
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Assign Team <span
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Barangay <span
                                 class="text-red-500">*</span></label>
-                        <select id="input-team"
-                            class="w-full border border-gray-300 rounded-lg p-2.5 bg-white outline-none dark-input"></select>
+                        <select id="input-barangay"
+                            class="w-full border border-gray-300 rounded-lg p-2.5 bg-white outline-none dark-input">
+                            <option value="" disabled selected>Select Area First</option>
+                        </select>
                     </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Assign Team <span
+                            class="text-red-500">*</span></label>
+                    <select id="input-team"
+                        class="w-full border border-gray-300 rounded-lg p-2.5 bg-white outline-none dark-input"></select>
                 </div>
 
                 <div class="border-t border-gray-200 dark-border pt-3 mt-2">
@@ -314,8 +327,16 @@
                 <div class="flex-1 min-w-[200px]">
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Area <span
                             class="text-red-500">*</span></label>
-                    <select id="global-bulk-area"
+                    <select id="global-bulk-area" onchange="updateBarangaysDropdown('global-bulk-area', 'global-bulk-barangay')"
                         class="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-white outline-none focus:ring-2 dark-input"></select>
+                </div>
+                <div class="flex-1 min-w-[200px]">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Barangay <span
+                            class="text-red-500">*</span></label>
+                    <select id="global-bulk-barangay"
+                        class="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-white outline-none focus:ring-2 dark-input">
+                        <option value="" disabled selected>Select Area First</option>
+                    </select>
                 </div>
                 <div class="flex-1 min-w-[200px]">
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Assign Team <span

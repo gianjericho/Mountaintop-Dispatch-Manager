@@ -26,6 +26,18 @@ let DYNAMIC_TEAMS = new Set(["Team Bernie", "Team Randy"]);
 let DYNAMIC_AREAS = new Set(["TAGAYTAY", "AMADEO", "MENDEZ", "BAILEN", "MARAGONDON", "ALFONSO", "MAGALLANES", "INDANG", "TERNATE"]);
 let authTeamsList = [];
 
+const BARANGAY_MAP = {
+    "ALFONSO": ["AMUYONG", "BARANGAY I (POB.)", "BARANGAY II (POB.)", "BARANGAY III (POB.)", "BARANGAY IV (POB.)", "BARANGAY V (POB.)", "BILOG", "BUCK ESTATE", "ESPERANZA IBABA", "ESPERANZA ILAYA", "KAYSUYO", "KAYTITINGA I", "KAYTITINGA II", "KAYTITINGA III", "LUKSUHIN", "LUKSUHIN ILAYA", "MANGAS I", "MANGAS II", "MARAHAN I", "MARAHAN II", "MATAGBAK I", "MATAGBAK II", "PALUMLUM", "PAJO", "SIKAT", "SINALIW MALAKI", "SINALIW NA MUNTI", "SANTA TERESA", "SULSUGIN", "TAYWANAK IBABA", "TAYWANAK ILAYA", "UPLI"],
+    "AMADEO": ["BANAYBANAY", "BARANGAY I (POB.)", "BARANGAY II (POB.)", "BARANGAY III (POB.)", "BARANGAY IV (POB.)", "BARANGAY V (POB.)", "BARANGAY VI (POB.)", "BARANGAY VII (POB.)", "BARANGAY VIII (POB.)", "BARANGAY IX (POB.)", "BARANGAY X (POB.)", "BARANGAY XI (POB.)", "BARANGAY XII (POB.)", "BUCAL", "BUHO", "DAGATAN", "HALANG", "LOMA", "MAYMANGGA", "MAITIM I", "MINANTOK KANLURAN", "MINANTOK SILANGAN", "PANGIL", "SALABAN", "TALON", "TAMACAN"],
+    "BAILEN": ["A. DALUSAG", "BATAS DAO", "CASTAÑOS CERCA", "CASTAÑOS LEJOS", "KABULUSAN", "KAYMISAS", "KAYPAABA", "LUMIPA", "NARVAEZ", "POBLACION I", "POBLACION II", "POBLACION III", "POBLACION IV", "TABORA"],
+    "INDANG": ["AGUS-US", "ALULOD", "BANABA CERCA", "BANABA LEJOS", "BANCOD", "BARANGAY 1 (POB.)", "BARANGAY 2 (POB.)", "BARANGAY 3 (POB.)", "BARANGAY 4 (POB.)", "BUNA CERCA", "BUNA LEJOS I", "BUNA LEJOS II", "CALUMPANG CERCA", "CALUMPANG LEJOS I", "CARASUCHI", "DAINE I", "DAINE II", "GUYAM MALAKI", "GUYAM MUNTI", "HARASAN", "KAYQUIT I", "KAYQUIT II", "KAYQUIT III", "KAYTAMBOG", "KAYTAPOS", "LIMBON", "LUMAMPONG BALAGBAG", "LUMAMPONG HALAYHAY", "MAHABANGKAHOY CERCA", "MAHABANGKAHOY LEJOS", "MATAAS NA LUPA", "PULO", "TAMBO BALAGBAG", "TAMBO ILAYA", "TAMBO KULIT", "TAMBO MALAKI"],
+    "MAGALLANES": ["BALIWAG", "BENDITA I", "BENDITA II", "CALUANGAN", "KABULUSAN", "MEDINA", "PACHECO", "RAMIREZ", "SAN AGUSTIN", "TUA", "URDANETA", "BARANGAY 1 (POB.)", "BARANGAY 2 (POB.)", "BARANGAY 3 (POB.)", "BARANGAY 4 (POB.)", "BARANGAY 5 (POB.)"],
+    "MARAGONDON": ["BUCAL I", "BUCAL II", "BUCAL III A", "BUCAL III B", "BUCAL IV A", "BUCAL IV B", "CAINGIN POB.", "GARITA I A", "GARITA I B", "LAYONG MABILOG", "MABATO", "PANTIHAN I", "PANTIHAN II", "PANTIHAN III", "PANTIHAN IV", "PATUNGAN", "PINAGSANHAN I A", "PINAGSANHAN I B", "POBLACION I A", "POBLACION I B", "POBLACION II A", "POBLACION II B", "SAN MIGUEL I A", "SAN MIGUEL I B", "TALIPUSNGO", "TULAY KANLURAN", "TULAY SILANGAN", "VILLAFRANCA"],
+    "MENDEZ": ["ANULING CERCA I", "ANULING CERCA II", "ANULING LEJOS I", "ANULING LEJOS II", "ASIS I", "ASIS II", "ASIS III", "BANAYAD", "BUKAL", "GALICIA I", "GALICIA II", "GALICIA III", "MIGUEL MOJICA", "PALOCPOC I", "PALOCPOC II", "PANUNGYAN I", "PANUNGYAN II", "POBLACION I", "POBLACION II", "POBLACION III", "POBLACION IV", "POBLACION V", "POBLACION VI", "POBLACION VII"],
+    "TAGAYTAY": ["ASISAN", "BAGONG TUBIG", "CALABUSO", "DAPDAP EAST", "DAPDAP WEST", "FRANCISCO", "GUINHAWA NORTH", "GUINHAWA SOUTH", "IRUHIN EAST", "IRUHIN SOUTH", "IRUHIN WEST", "KAYBAGAL EAST", "KAYBAGAL NORTH", "KAYBAGAL SOUTH (POB.)", "MAG-ASAWANG ILAT", "MAHARLIKA EAST", "MAHARLIKA WEST", "MAITIM 2ND CENTRAL", "MAITIM 2ND EAST", "MAITIM 2ND WEST", "MENDEZ CROSSING EAST", "MENDEZ CROSSING WEST", "NEOGAN", "PATUTONG MALAKI NORTH", "PATUTONG MALAKI SOUTH", "SAMBONG", "SAN JOSE", "SILANG JUNCTION NORTH", "SILANG JUNCTION SOUTH", "SUNGAY NORTH", "SUNGAY SOUTH", "TOLENTINO EAST", "TOLENTINO WEST", "ZAMBAL", "-"],
+    "TERNATE": ["POBLACION I", "POBLACION I A", "POBLACION II", "POBLACION III", "BUCANA", "SAN JOSE", "SAN JUAN I", "SAN JUAN II", "SAPANG I", "SAPANG II", "-"]
+};
+
 let currentTab = 'active';
 let currentAppMode = 'SLR';
 let renderLimit = 50;
@@ -66,6 +78,28 @@ function renderAreaRow(t, d, tot) {
 function buildOptions(set, selectedVal) {
     let html = `<option value="" disabled ${!selectedVal ? 'selected' : ''}>-- Select --</option>`;[...set].sort().forEach(val => { html += `<option value="${val}" ${selectedVal === val ? 'selected' : ''}>${val}</option>`; }); html += `<option value="NEW_ENTRY" class="font-bold text-blue-600 bg-blue-50">+ ADD NEW...</option>`; return html;
 }
+
+window.updateBarangaysDropdown = (areaSelectId, brgySelectId, selectedBrgy = "") => {
+    const areaVal = document.getElementById(areaSelectId)?.value;
+    const brgySelect = document.getElementById(brgySelectId);
+    if (!brgySelect) return;
+
+    brgySelect.innerHTML = '<option value="">All Barangays</option>';
+    if (brgySelectId.startsWith('input-') || brgySelectId.startsWith('bulk-')) {
+        brgySelect.innerHTML = '<option value="" disabled selected>-- Select --</option>';
+    }
+
+    if (!areaVal || !BARANGAY_MAP[areaVal]) {
+        if (!brgySelectId.startsWith('global-')) {
+            brgySelect.innerHTML = '<option value="" disabled selected>Select Area First</option>';
+        }
+        return;
+    }
+
+    BARANGAY_MAP[areaVal].sort().forEach(b => {
+        brgySelect.innerHTML += `<option value="${b}" ${selectedBrgy === b ? 'selected' : ''}>${b}</option>`;
+    });
+};
 
 function generateUUID() {
     if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
@@ -125,7 +159,7 @@ window.switchTab = (tab) => {
     render(true);
 };
 
-window.clearAllFilters = () => { document.getElementById('global-date-filter').value = ''; document.getElementById('global-team-filter').value = ''; document.getElementById('global-area-filter').value = ''; document.getElementById('global-search').value = ''; render(true); }
+window.clearAllFilters = () => { document.getElementById('global-date-filter').value = ''; document.getElementById('global-team-filter').value = ''; document.getElementById('global-area-filter').value = ''; if (document.getElementById('global-barangay-filter')) document.getElementById('global-barangay-filter').innerHTML = '<option value="">All Barangays</option>'; document.getElementById('global-search').value = ''; render(true); }
 window.toggleSettings = () => { toggleModal('settings-modal'); document.getElementById('team-list-settings').innerHTML = [...DYNAMIC_TEAMS].sort().map(t => `<div class="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-200 dark-bg-sub dark-border"><span class="text-sm font-medium text-gray-700 dark-text">${t}</span><div class="flex gap-2"><button onclick="renameTeam('${t}')" class="text-blue-400 hover:text-blue-600"><i class="fa-solid fa-pen"></i></button><button onclick="deleteTeam('${t}')" class="text-red-400 hover:text-red-600"><i class="fa-solid fa-trash-can"></i></button></div></div>`).join(''); }
 window.addNewTeam = () => { alert("⚠️ To add a new permanent Team, please add a technician with that team name directly in the database first. Contact the developer if you need assistance."); document.getElementById('new-team-name').value = ''; }
 window.toggleTheme = () => { document.body.classList.toggle('dark-mode'); const isDark = document.body.classList.contains('dark-mode'); localStorage.setItem('slrTheme', isDark ? 'dark' : 'light'); }
@@ -357,7 +391,9 @@ window.saveSO = async () => {
     let area = document.getElementById('input-area').value;
     if (area === "NEW_ENTRY") area = document.getElementById('input-area-custom').value.trim();
 
-    if (!name || !team || !area) return alert("All fields required");
+    let barangay = document.getElementById('input-barangay').value;
+
+    if (!name || !team || !area || !barangay) return alert("All fields required");
 
     let remarksToSave = "";
     const modalRemarks = document.getElementById('input-remarks') ? document.getElementById('input-remarks').value.trim() : "";
@@ -378,6 +414,7 @@ window.saveSO = async () => {
         name,
         team,
         area,
+        barangay,
         type: currentAppMode,
         status: 'active',
         ticket_no: document.getElementById('input-ticket').value.trim(),
@@ -515,12 +552,14 @@ document.addEventListener('paste', function (e) {
 });
 
 window.saveBulkSO = async () => {
-    // Grab Team and Area globally
+    // Grab Team, Area, and Barangay globally
     const team = document.getElementById('global-bulk-team').value;
     const area = document.getElementById('global-bulk-area').value;
+    const barangay = document.getElementById('global-bulk-barangay') ? document.getElementById('global-bulk-barangay').value : "";
 
     if (!area || area === "NEW_ENTRY") return alert("⚠️ Please select an Area.");
     if (!team || team === "NEW_ENTRY") return alert("⚠️ Please select a Team.");
+    if (!barangay) return alert("⚠️ Please select a Barangay.");
 
     const rows = document.querySelectorAll('.bulk-row');
     const payload = [];
@@ -552,6 +591,7 @@ window.saveBulkSO = async () => {
             name: name,
             team: team,   // From global dropdown
             area: area,   // From global dropdown
+            barangay: barangay,
             type: currentAppMode,
             status: 'active',
             dateAdded: todayStr,
@@ -605,11 +645,12 @@ function render(resetLimit = false) {
     const dateInput = document.getElementById('global-date-filter').value;
     const teamFilter = document.getElementById('global-team-filter').value;
     const areaFilter = document.getElementById('global-area-filter').value;
+    const barangayFilter = document.getElementById('global-barangay-filter') ? document.getElementById('global-barangay-filter').value : "";
     const searchInput = document.getElementById('global-search').value.toLowerCase().trim();
     const perfFilter = document.getElementById('perf-filter').value;
     let selectedDate = dateInput ? parseDateInput(dateInput) : null;
 
-    const hasFilters = selectedDate || teamFilter || areaFilter || searchInput;
+    const hasFilters = selectedDate || teamFilter || areaFilter || barangayFilter || searchInput;
     const resetBtn = document.getElementById('clear-filters-btn');
     if (resetBtn) resetBtn.className = hasFilters ? "text-[10px] bg-red-100 hover:bg-red-200 text-red-600 px-3 py-1 rounded-full font-bold transition" : "hidden";
 
@@ -637,6 +678,7 @@ function render(resetLimit = false) {
         }
         if (teamFilter && item.team !== teamFilter) return false;
         if (areaFilter && item.area !== areaFilter) return false;
+        if (barangayFilter && item.barangay !== barangayFilter) return false;
 
         if (selectedDate) {
             let itemDateToCompare = null;
@@ -928,7 +970,7 @@ function createCardHTML(item) {
             <div class="flex items-start gap-2">
                 ${isPending ? `<input type="checkbox" class="pending-cb w-4 h-4 mt-0.5 accent-blue-600 cursor-pointer rounded" value="${item.id}">` : ''}
                 <div>
-                    <span class="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded mb-1 inline-block border border-slate-200 dark-bg-sub dark-text dark-border">${item.area}</span>
+                    <span class="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded mb-1 inline-block border border-slate-200 dark-bg-sub dark-text dark-border">${item.area}${item.barangay ? ` • ${item.barangay}` : ''}</span>
                     <h3 class="font-bold text-gray-800 text-lg leading-tight dark-text">${item.name}</h3>
                     <p class="text-xs ${teamColorClass} mt-0.5 uppercase tracking-wide dark-text">${item.team}</p>
                     <div class="text-[10px] text-gray-400 mt-1 tracking-wider"><i class="fa-solid fa-headset mr-1"></i> Dispatched by: ${item.dispatched_by || 'Unknown'}</div>
@@ -1162,6 +1204,7 @@ window.openModal = (editId = null) => {
 
     document.getElementById('input-team').innerHTML = buildOptions(DYNAMIC_TEAMS, editItem ? editItem.team : null);
     document.getElementById('input-area').innerHTML = buildOptions(DYNAMIC_AREAS, editItem ? editItem.area : null);
+    updateBarangaysDropdown('input-area', 'input-barangay', editItem ? editItem.barangay : "");
 
     const btn = document.getElementById('modal-btn');
 
