@@ -348,7 +348,7 @@ async function startSupabaseListener() {
         db.channel('custom-all-channel')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'service_orders' }, (payload) => {
                 if (payload.eventType === 'INSERT') { if (!soData.find(i => i.id === payload.new.id)) soData.push(payload.new); }
-                else if (payload.eventType === 'UPDATE') { const index = soData.findIndex(i => i.id === payload.new.id); if (index !== -1) soData[index] = { ...soData[index], ...payload.new }; }
+                else if (payload.eventType === 'UPDATE') { const index = soData.findIndex(i => i.id === payload.new.id); if (index !== -1) soData[index] = payload.new; }
                 else if (payload.eventType === 'DELETE') { soData = soData.filter(i => i.id !== payload.old.id); }
                 extractDynamicOptions();
                 render(false);
@@ -541,8 +541,8 @@ document.addEventListener('paste', function (e) {
 
         cols.forEach((cellData, cIdx) => {
             const currentColIdx = startColIdx + cIdx;
-            // Ensure we don't paste past the 7th column (the delete button)
-            if (currentColIdx < 7) {
+            // Ensure we don't paste past the 6th column (the delete button)
+            if (currentColIdx < 6) {
                 const input = tr.children[currentColIdx].querySelector('input');
                 if (input) {
                     input.value = cellData.trim();
@@ -573,11 +573,10 @@ window.saveBulkSO = async () => {
         const acct = row.querySelector('.bulk-acct').value.trim();
         const contact = row.querySelector('.bulk-contact').value.trim();
         const address = row.querySelector('.bulk-address').value.trim();
-        const trouble = row.querySelector('.bulk-trouble').value.trim();
         const remarks = row.querySelector('.bulk-remarks').value.trim();
 
         // Skip completely empty rows
-        if (!name && !ticket && !acct && !contact && !address && !trouble && !remarks) return;
+        if (!name && !ticket && !acct && !contact && !address && !remarks) return;
 
         // Ensure required Name field is filled
         if (!name) {
@@ -602,7 +601,6 @@ window.saveBulkSO = async () => {
             account_no: acct,
             contact_number: contact,
             address: address,
-            trouble_report: trouble,
             remarks: remarks,
             pic: false, pwr: false, speed: false, rpt: false,
             dispatched_by: window.currentUserEmail
@@ -1295,7 +1293,6 @@ window.addBulkRow = () => {
         <td class="p-1.5"><input type="text" class="bulk-acct w-full p-2 text-sm border border-gray-200 rounded outline-none focus:border-blue-500 dark-input placeholder-gray-300" placeholder="Account..."></td>
         <td class="p-1.5"><input type="text" class="bulk-contact w-full p-2 text-sm border border-gray-200 rounded outline-none focus:border-blue-500 dark-input placeholder-gray-300" placeholder="Contact..."></td>
         <td class="p-1.5"><input type="text" class="bulk-address w-full p-2 text-sm border border-gray-200 rounded outline-none focus:border-blue-500 dark-input placeholder-gray-300" placeholder="Address..."></td>
-        <td class="p-1.5"><input type="text" class="bulk-trouble w-full p-2 text-sm border border-gray-200 rounded outline-none focus:border-blue-500 dark-input placeholder-gray-300" placeholder="Trouble..."></td>
         <td class="p-1.5"><input type="text" class="bulk-remarks w-full p-2 text-sm border border-gray-200 rounded outline-none focus:border-blue-500 dark-input placeholder-gray-300" placeholder="Remarks..."></td>
         <td class="p-1.5 text-center"><button onclick="this.closest('tr').remove()" class="text-red-400 hover:text-red-600 p-1"><i class="fa-solid fa-trash"></i></button></td>
     `;
