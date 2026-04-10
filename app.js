@@ -676,9 +676,9 @@ function render(resetLimit = false) {
             if (searchField === 'ticket' && !matchTicket) return false;
             if (searchField === 'account' && !matchAccount) return false;
         }
-        if (teamFilter && item.team !== teamFilter) return false;
-        if (areaFilter && item.area !== areaFilter) return false;
-        if (barangayFilter && item.barangay !== barangayFilter) return false;
+        if (teamFilter && (!item.team || String(item.team).trim().toUpperCase() !== String(teamFilter).trim().toUpperCase())) return false;
+        if (areaFilter && (!item.area || String(item.area).trim().toUpperCase() !== String(areaFilter).trim().toUpperCase())) return false;
+        if (barangayFilter && (!item.barangay || String(item.barangay).trim().toUpperCase() !== String(barangayFilter).trim().toUpperCase())) return false;
 
         if (selectedDate) {
             let itemDateToCompare = null;
