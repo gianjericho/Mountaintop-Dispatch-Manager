@@ -1,9 +1,0 @@
-
-DevTools listening on ws://127.0.0.1:62060/devtools/browser/898a294d-747d-4c6b-81f3-c3decf7a962e
-Warning: The allowCypressEnv configuration option is enabled. This allows any browser code to read values from Cypress.env(). This is insecure and will be removed in a future major version.
-
-1. Replace Cypress.env() calls with cy.env() (for sensitive values) or Cypress.expose() (for public configuration)
-2. Set allowCypressEnv: false in your Cypress configuration to disable Cypress.env()
-
-Learn more: https://on.cypress.io/cypress-env-migration
-
