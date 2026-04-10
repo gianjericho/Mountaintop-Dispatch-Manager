@@ -864,7 +864,7 @@ function createCardHTML(item) {
     const border = isSLR ? 'border-green-500' : 'border-indigo-500';
     const check = (val) => val ? 'checked' : '';
 
-    // Action Button Logic (Animations removed)
+    // Action Button Logic
     let actionBtn = '';
     if (isPending) {
         actionBtn = `<button onclick="approveSO('${item.id}')" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow uppercase tracking-wide transition flex items-center"><i class="fa-solid fa-thumbs-up mr-1"></i> Accept</button>`;
@@ -874,9 +874,16 @@ function createCardHTML(item) {
         actionBtn = `<button onclick="markDone('${item.id}')" class="bg-${color}-600 hover:bg-${color}-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow uppercase tracking-wide transition flex items-center"><i class="fa-solid fa-check mr-1"></i> Done</button>`;
     }
 
-    // Team color logic (Animations removed)
+    // Team color logic
     const teamColorClass = (isPending && item.team === 'Unassigned') ? 'text-red-500 font-extrabold' : 'text-gray-500 font-bold';
     const borderColor = (isPending) ? 'border-yellow-400' : (item.team && item.team.toLowerCase().includes('bernie') ? 'border-orange-400' : border);
+
+    // Mode-specific labels and icons
+    const ticketLabel = (currentAppMode === 'SLI') ? 'JO' : 'Ticket No.';
+    const ticketIcon = (currentAppMode === 'SLI') ? 'fa-clipboard-list' : 'fa-ticket';
+    const troubleLabel = (currentAppMode === 'SLI') ? 'Package' : 'Reported Trouble';
+    const troubleIcon = (currentAppMode === 'SLI') ? 'fa-box' : 'fa-triangle-exclamation';
+    const troubleColor = (currentAppMode === 'SLI') ? 'text-indigo-600' : 'text-orange-600';
 
     // Google Maps Link Logic
     let mapElement = '';
@@ -888,7 +895,6 @@ function createCardHTML(item) {
 
         if (isCoordinate) {
             const safeCoords = encodeURIComponent(rawText.replace(/\s/g, ''));
-            // Official Google Maps Directions API link
             const mapUrl = `https://www.google.com/maps/dir/?api=1&destination=${safeCoords}`;
             mapElement = `<a href="${mapUrl}" target="_blank" class="shrink-0 ml-2 bg-blue-100 hover:bg-blue-200 text-blue-700 text-[10px] px-2 py-1 rounded-md font-bold transition shadow-sm border border-blue-200"><i class="fa-solid fa-route mr-1"></i>ROUTE</a>`;
         } else {
@@ -896,7 +902,7 @@ function createCardHTML(item) {
         }
     }
 
-    // Aging Calculator Logic (Animations removed)
+    // Aging Calculator Logic
     let agingBadge = '';
     let reportedDateDisplay = item.date_reported || 'Unknown Date';
 
@@ -916,11 +922,7 @@ function createCardHTML(item) {
         <div class="mt-2 mb-3 p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-600 dark-bg-sub dark-text dark-border">
             <div class="flex justify-between items-center border-b border-slate-200 pb-1.5 mb-1.5 dark-border">
                 <span class="font-bold text-slate-700 dark-text text-[11px]">
-                    ${currentAppMode === 'SLI' ? `
-                    <i class="fa-solid fa-clipboard-list text-slate-400 mr-1"></i>JO: ${item.ticket_no || 'No Ticket'} 
-                    ` : `
-                    <i class="fa-solid fa-ticket text-slate-400 mr-1"></i>${item.ticket_no || 'No Ticket'} 
-                    `}
+                    <i class="fa-solid ${ticketIcon} text-slate-400 mr-1"></i>${ticketLabel}: ${item.ticket_no || 'No Ticket'} 
                     <span class="ml-1 font-mono text-slate-500 font-normal">(${item.account_no || 'No Acct'})</span>
                 </span>
                 
@@ -951,15 +953,10 @@ function createCardHTML(item) {
             </div>` : ''}
             
             ${item.trouble_report ? `
-            ${currentAppMode === 'SLI' ? `
-            <div class="mt-2 pt-1.5 border-t border-slate-200 dark-border text-indigo-600 font-bold flex items-start">
-                <i class="fa-solid fa-box mt-0.5 mr-1.5"></i>
-                <span class="leading-tight">Package: ${item.trouble_report}</span>
-            </div>` : `
-            <div class="mt-2 pt-1.5 border-t border-slate-200 dark-border text-orange-600 font-bold flex items-start">
-                <i class="fa-solid fa-triangle-exclamation mt-0.5 mr-1.5"></i>
-                <span class="leading-tight">${item.trouble_report}</span>
-            </div>`}
+            <div class="mt-2 pt-1.5 border-t border-slate-200 dark-border ${troubleColor} font-bold flex items-start">
+                <i class="fa-solid ${troubleIcon} mt-0.5 mr-1.5"></i>
+                <span class="leading-tight">${troubleLabel}: ${item.trouble_report}</span>
+            </div>
             ` : ''}
         </div>
     `;
