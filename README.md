@@ -15,6 +15,7 @@
 * **⚡ Real-Time Data Sync:** Powered by Supabase WebSockets, dispatchers and field techs see updates, assignments, and ticket closures instantly without ever refreshing the page.
 * **📥 Smart Triage Inbox:** Admins can review, edit, assign, and bulk-approve incoming tickets before they hit the active field dispatch board.
 * **📊 Spreadsheet-Style Bulk Dispatch:** Paste multi-column data directly from Excel/Google Sheets into the app to generate dozens of rich tickets in seconds.
+* **📍 Area & Barangay Granularity:** Integrated sub-area (Barangay) classification and filtering, allowing dispatchers to triage operations with district-level precision.
 
 ## 📸 App Gallery
 
@@ -61,10 +62,13 @@ To run this project locally:
      "TEST_EMAIL": "your-test-email@example.com",
      "TEST_PASSWORD": "your-test-password"
    }
-4. **Run the build script:**
+4. **Run the production build script:**
    ```Bash
    npm run build
-5. Open locally: Use Live Server (VS Code extension) or any local HTTP server to open `index.html`
+   ```
+   *Note: This generates a minified `app.min.js` using Terser to optimize performance while ensuring core logic integrity.*
+
+5. **Open locally:** Use Live Server (VS Code extension) or any local HTTP server to open `index.html`
 
 ## 🛡️ Architecture & Security Note
 

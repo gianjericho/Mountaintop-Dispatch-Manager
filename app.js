@@ -40,6 +40,7 @@ const BARANGAY_MAP = {
 
 let currentTab = 'active';
 let currentAppMode = 'SLR';
+console.log("🚀 DISPATCHER LOGIC V2.1 ACTIVE - TERSER BUILD");
 let renderLimit = 50;
 let db = null;
 let lineChartInstance = null;

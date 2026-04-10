@@ -18,7 +18,7 @@
 - `name`: text (Subscriber Name)
 - `team`: text (Assigned Team Name or 'Unassigned')
 - `area`: text (e.g., TAGAYTAY, AMADEO)
-- `barangay`: text (Dynamic sub-area dependant on the area field)
+- `barangay`: text (Dynamic sub-area dependant on the area field, synced from monitoring sheets)
 - `status`: text ('pending', 'active', 'done')
 - `type`: text ('SLR' or 'SLI')
 - `date_reported`: text (Original date from monitoring sheet)
@@ -36,8 +36,10 @@
 ## Business Logic Rules
 1. **Automation Bridge:** Google Apps Script pushes new rows as `status: 'pending'`.
 2. **Inbox Logic:** Only 'admin' or 'developer' can see the 'pending' tab to assign teams and approve tickets.
-3. **SLI vs SLR UI:** - If `type === 'SLI'`, the UI labels `#input-trouble` as "Package" and `#input-ticket` as "JO No."
-   - If `type === 'SLR'`, it uses "Reported Trouble" and "Ticket No."
+3. **SLI vs SLR UI (Refactored):** The rendering engine (`createCardHTML`) uses environment-aware variables to toggle labels:
+   - If `currentAppMode === 'SLI'`: Labels use "JO No." and "Package". Icons use `fa-clipboard-list` and `fa-box`.
+   - If `currentAppMode === 'SLR'`: Labels use "Ticket No." and "Reported Trouble". Icons use `fa-ticket` and `fa-triangle-exclamation`.
+4. **Filtering Robustness:** Search and filter logic for `team`, `area`, and `barangay` is case-insensitive and whitespace-trimmed to ensure data entry variations in Google Sheets do not break the dashboard.
 4. **RBAC:** - 'tech' users ONLY see 'active' tickets matching their assigned `team`. 
    - 'admin' and 'developer' see all tickets and management tools.
 5. **_SYS_REF:** The Google Apps Script uses a `_SYS_REF` column in the sheets. If the cell is empty, the script syncs the row and writes '1' back to the sheet to prevent duplicates.
