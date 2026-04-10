@@ -4,7 +4,7 @@
   "description": "",
   "main": "app.js",
   "scripts": {
-    "build": "javascript-obfuscator app.js --output app.min.js --compact true --self-defending true --string-array true --string-array-rotate true --disable-console-output true",
+    "build": "javascript-obfuscator app.js --output app.min.js --compact true --self-defending false --string-array false --disable-console-output false",
     "start": "http-server . -p 5500 -c-1",
     "cy:run": "cypress run",
     "test": "start-server-and-test start http://127.0.0.1:5500 cy:run"
