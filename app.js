@@ -647,6 +647,9 @@ function render(resetLimit = false) {
             } else if (currentTab === 'active') {
                 // If in Dispatch, filter by the day it was accepted/created
                 itemDateToCompare = item.dateAdded;
+            } else if (currentTab === 'performance') {
+                // For performance, mirror the period filter logic
+                itemDateToCompare = item.status === 'done' ? (item.dateDone || item.dateAdded || item.date_reported) : (item.dateAdded || item.date_reported);
             } else {
                 // If in History, filter by the day it was completed
                 itemDateToCompare = item.dateDone;
