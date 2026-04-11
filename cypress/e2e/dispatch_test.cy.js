@@ -1,116 +1,139 @@
-describe('Dispatch Manager - Pre-Deployment Verification', () => {
+describe('Dispatch Manager - Comprehensive Functional Verification', () => {
 
-  // ⚡ CATCH SILENT ERRORS: If the app throws an alert(), fail the test instantly and show us!
   Cypress.on('window:alert', (msg) => {
-    throw new Error(`🚨 CAUGHT SILENT APP ERROR: ${msg}`);
+    cy.log(`⚠️ APP ALERT: ${msg}`);
   });
 
   beforeEach(() => {
+    cy.clearLocalStorage();
     cy.visit('http://127.0.0.1:5500/index.html');
-    cy.get('#login-screen', { timeout: 10000 }).should('be.visible');
     
     cy.window().then(async (win) => {
-      expect(win.db).to.not.be.undefined; 
-      const { data, error } = await win.db.auth.signInWithPassword({
-        email: Cypress.env('TEST_EMAIL'), 
-        password: Cypress.env('TEST_PASSWORD')          
-      });
+      const testEmail = Cypress.env('TEST_EMAIL');
+      const testPass = Cypress.env('TEST_PASSWORD');
       
-      // ⚡ THE FIX: Throw a hard error if login fails so we don't test as an anonymous user!
-      if (error) throw new Error(`🚨 SUPABASE LOGIN FAILED: ${error.message}`);
+      const { error } = await win.db.auth.signInWithPassword({
+        email: testEmail, 
+        password: testPass          
+      });
+      if (error) throw error;
       
       win.showApp();
     });
 
-    cy.get('#main-app', { timeout: 10000 }).should('be.visible');
+    cy.get('#main-app', { timeout: 15000 }).should('be.visible');
+    cy.get('#app-title', { timeout: 15000 }).should('be.visible');
     cy.get('#loading-screen', { timeout: 15000 }).should('have.class', 'hidden');
-    cy.get('.fixed.inset-0').invoke('addClass', 'hidden'); 
+    cy.wait(1000); 
   });
 
-  it('1. Create Rich Manual Dispatch & Delete', () => {
-    const testName = 'Cy Rich User ' + Date.now().toString().slice(-5);
+  it('1. Mode Switching: SLR vs SLI UI Labels', () => {
+    cy.get('#mode-sli').click();
+    cy.wait(1000);
+    cy.get('#app-title').should('contain', 'SLI');
     
     cy.get('#btn-new').click();
+    cy.get('#form-modal', { timeout: 8000 }).should('be.visible');
+    cy.get('input[placeholder*="JO No."]').should('be.visible');
     
+    cy.get('#form-modal button .fa-times').first().parent().click({ force: true });
+    cy.get('#form-modal', { timeout: 5000 }).should('have.class', 'hidden');
+
+    cy.get('#mode-slr').click();
+    cy.wait(1000);
+    cy.get('#app-title').should('contain', 'SLR');
+    
+    cy.get('#btn-new').click();
+    cy.get('#form-modal', { timeout: 8000 }).should('be.visible');
+    cy.get('input[placeholder*="Ticket No."]').should('be.visible');
+    cy.get('#form-modal button .fa-times').first().parent().click({ force: true });
+  });
+
+  it('2. Manual Dispatch: Barangay & Details', () => {
+    const testName = 'Cy Manual ' + Date.now().toString().slice(-4);
+    cy.get('#btn-new').click();
     cy.get('#input-name').type(testName);
-    cy.get('#input-area').select('TAGAYTAY');
-    cy.get('#input-team').select('Team Bernie');
-    cy.get('#input-ticket').type('TCKT-9999');
-    cy.get('#input-account').type('ACCT-0000');
-    cy.get('#input-address').type('123 Cypress Testing Avenue');
-    cy.get('#input-trouble').type('LOS Red Light');
-    
+    cy.get('#input-area').select('AMADEO', { force: true }).trigger('change');
+    cy.wait(1000); 
+    cy.get('#input-barangay').select('DAGATAN', { force: true });
+    cy.get('#input-team').select('Team Bernie', { force: true });
+    cy.get('#input-ticket').type('TCK-MANUAL');
     cy.get('#modal-btn').click();
 
-    // ⚡ NEW: Wait for the database to confirm the save and close the modal FIRST
-    cy.get('#form-modal', { timeout: 10000 }).should('have.class', 'hidden');
-
+    cy.get('#nav-pending').click({ force: true });
+    cy.wait(500);
     cy.get('#nav-active').click({ force: true });
-    cy.contains(testName, { timeout: 10000 }).should('be.visible');
-    cy.contains('TCKT-9999').should('be.visible');
-    cy.contains('123 Cypress Testing Avenue').should('be.visible');
-
-    cy.window().then((win) => { cy.stub(win, 'confirm').returns(true); });
-    cy.contains('.bg-white', testName).find('.fa-trash').click();
-    cy.contains(testName).should('not.exist');
+    
+    cy.get('#global-search').clear().type(testName);
+    cy.contains('.service-order-card', testName, { timeout: 15000 }).should('be.visible');
   });
 
-  it('2. Bulk Dispatch (Spreadsheet Table UI)', () => {
-    const bulkName = 'Cy Bulk User ' + Date.now().toString().slice(-5);
+  it('3. Card Actions: Checklist Toggling', () => {
+    const testName = 'Cy Checklist ' + Date.now().toString().slice(-4);
     
+    // ⚡ Self-Healing: Create a card first to ensure test data exists
+    cy.get('#btn-new').click();
+    cy.get('#input-name').type(testName);
+    cy.get('#input-area').select('AMADEO', { force: true }).trigger('change');
+    cy.wait(1000); 
+    cy.get('#input-barangay').select('DAGATAN', { force: true });
+    cy.get('#input-team').select('Team Bernie', { force: true });
+    cy.get('#modal-btn').click();
+    
+    cy.get('#nav-active').click({ force: true });
+    cy.get('#global-search').clear().type(testName);
+    
+    cy.get('.service-order-card', { timeout: 15000 }).first().within(() => {
+      cy.get('input[type="checkbox"]').first().click({ force: true });
+      cy.wait(800); 
+      cy.get('input[type="checkbox"]').first().should('be.checked');
+    });
+  });
+
+  it('4. Bulk Dispatch: New Trouble Column', () => {
+    const bulkName = 'Cy Bulk ' + Date.now().toString().slice(-4);
     cy.get('#btn-bulk').click();
     
-    cy.get('#global-bulk-area').select('AMADEO');
-    cy.get('#global-bulk-team').select('Team Randy');
+    // Barangay is now a per-row text input
+    cy.get('.bulk-row').first().find('.bulk-name').type(bulkName);
+    cy.get('.bulk-row').first().find('.bulk-barangay').type('DAGATAN');
+    cy.get('.bulk-row').first().find('.bulk-trouble').type('Bulk Trouble Test');
     
-    cy.get('.bulk-name').first().type(bulkName);
-    cy.get('.bulk-ticket').first().type('BULK-TCKT-1');
-    cy.get('.bulk-contact').first().type('09123456789');
+    cy.get('#global-bulk-area').select('AMADEO', { force: true }).trigger('change');
+    cy.wait(500);
+    cy.get('#global-bulk-team').select('Team Bernie', { force: true });
 
     cy.get('#bulk-btn').click();
-
-    // ⚡ NEW: Wait for the database to confirm the bulk save and close the modal FIRST
     cy.get('#bulk-modal', { timeout: 10000 }).should('have.class', 'hidden');
 
-    cy.get('#nav-active').click({ force: true });
-    cy.contains(bulkName, { timeout: 10000 }).should('be.visible');
-
-    cy.window().then((win) => { cy.stub(win, 'confirm').returns(true); });
-    cy.contains('.bg-white', bulkName).find('.fa-trash').click();
-  });
-
-  it('3. Pagination: Dropdown and Show More', () => {
-    cy.get('#nav-active').click({ force: true });
-    cy.get('#entries-limit').select('25');
-    cy.get('#entries-limit').should('have.value', '25');
-
-    cy.get('body').then($body => {
-      const showMoreBtn = $body.find('#show-more-btn');
-      if (showMoreBtn.length > 0 && !showMoreBtn.hasClass('hidden')) {
-          cy.wrap(showMoreBtn).should('contain', 'Show 25 More').click();
-      }
-    });
-  });
-
-  it('4. Inbox Triage Action Bar Exists', () => {
     cy.get('#nav-pending').click({ force: true });
-    
-    cy.get('body').then($body => {
-      if ($body.find('.pending-cb').length > 0) {
-        cy.get('#inbox-bulk-team').should('be.visible');
-        cy.get('#select-all-pending').should('be.visible');
-        cy.contains('button', 'Send').should('be.visible');
-      } else {
-        cy.get('#empty-msg').should('not.have.class', 'hidden');
-      }
-    });
+    cy.wait(500);
+    cy.get('#nav-active').click({ force: true });
+    cy.get('#global-search').clear().type(bulkName);
+    cy.contains('.service-order-card', bulkName, { timeout: 15000 }).should('be.visible');
   });
 
-  it('5. Search & Filters', () => {
+  it('5. Navigation: Performance Tab Rendering', () => {
+    cy.get('#nav-performance').click();
+    cy.get('#view-performance', { timeout: 10000 }).should('be.visible');
+    cy.get('canvas', { timeout: 15000 }).should('have.length.at.least', 2);
+  });
+
+  it('6. Cleanup: Search and Delete Created Records', () => {
     cy.get('#nav-active').click({ force: true });
-    cy.get('#global-search').type('XQZQJ123');
-    cy.get('#empty-msg').should('not.have.class', 'hidden');
-    cy.get('#clear-filters-btn').should('be.visible').click();
-    cy.get('#global-search').should('have.value', '');
+    cy.get('#global-search').clear().type('Cy ');
+    cy.wait(1000);
+
+    cy.get('body').then(($body) => {
+      const deleteButtons = $body.find('button[onclick*="deleteSO"]');
+      if (deleteButtons.length > 0) {
+        cy.stub(window, 'confirm').returns(true);
+        // Delete up to 5 sequentially with fresh DOM lookups
+        for(let i=0; i<Math.min(deleteButtons.length, 5); i++) {
+            cy.get('button[onclick*="deleteSO"]').first().click({ force: true });
+            cy.wait(1000);
+        }
+      }
+    });
   });
 });

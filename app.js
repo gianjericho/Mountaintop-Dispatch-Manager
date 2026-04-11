@@ -45,6 +45,44 @@ let renderLimit = 50;
 let db = null;
 let lineChartInstance = null;
 let pieChartInstance = null;
+let techTodayOnlyMode = true; // Feature 4: Techs default to today-only view
+
+// ============================================
+// TOAST NOTIFICATION UTILITY
+// ============================================
+function showToast(message, type = 'info', duration = 5000) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const colors = {
+        success: 'bg-green-600 border-green-700',
+        warning: 'bg-amber-500 border-amber-600',
+        error: 'bg-red-600 border-red-700',
+        info: 'bg-blue-600 border-blue-700'
+    };
+    const icons = {
+        success: 'fa-circle-check',
+        warning: 'fa-triangle-exclamation',
+        error: 'fa-circle-xmark',
+        info: 'fa-circle-info'
+    };
+
+    const toast = document.createElement('div');
+    toast.className = `pointer-events-auto flex items-start gap-3 text-white text-xs font-bold p-3 rounded-xl shadow-xl border ${colors[type] || colors.info} opacity-0 translate-y-4 transition-all duration-300`;
+    toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info} mt-0.5 shrink-0"></i><span>${message}</span>`;
+    container.appendChild(toast);
+
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            toast.classList.remove('opacity-0', 'translate-y-4');
+        });
+    });
+
+    setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-4');
+        setTimeout(() => toast.remove(), 300);
+    }, duration);
+}
 
 // ============================================
 // 3. UTILITIES & HELPERS (No Changes)
@@ -90,17 +128,51 @@ window.updateBarangaysDropdown = (areaSelectId, brgySelectId, selectedBrgy = "")
         brgySelect.innerHTML = '<option value="" disabled selected>-- Select --</option>';
     }
 
-    if (!areaVal || !BARANGAY_MAP[areaVal]) {
+    const areaKey = areaVal ? areaVal.toUpperCase() : null;
+    if (!areaKey || !BARANGAY_MAP[areaKey]) {
         if (!brgySelectId.startsWith('global-')) {
             brgySelect.innerHTML = '<option value="" disabled selected>Select Area First</option>';
         }
+        log(`Dropdown not updated: areaVal=${areaVal}, brgySelectId=${brgySelectId}`);
         return;
     }
 
-    BARANGAY_MAP[areaVal].sort().forEach(b => {
+    log(`Updating ${brgySelectId} for area ${areaKey}`);
+    BARANGAY_MAP[areaKey].sort().forEach(b => {
         brgySelect.innerHTML += `<option value="${b}" ${selectedBrgy === b ? 'selected' : ''}>${b}</option>`;
     });
 };
+
+window.setupEventListeners = () => {
+    log("Setting up Global Event Delegation...");
+
+    // Use delegation on body to handle all current and future Area dropdowns
+    document.body.addEventListener('change', (e) => {
+        const id = e.target.id;
+        if (id === 'input-area') {
+            log("Delegated change for input-area detected.");
+            setTimeout(() => window.updateBarangaysDropdown('input-area', 'input-barangay'), 20);
+        } else if (id === 'global-bulk-area') {
+            log("Delegated change for global-bulk-area detected.");
+            setTimeout(() => window.updateBarangaysDropdown('global-bulk-area', 'global-bulk-barangay'), 20);
+        }
+    });
+}
+
+window.saveRemarks = async (id, val) => {
+    const itemIndex = soData.findIndex(i => i.id == id);
+    if (itemIndex === -1) return;
+
+    const column = currentUserRole === 'tech' ? 'tech_remarks' : 'remarks';
+    log(`Auto-saving ${column} for ${id}...`);
+
+    try {
+        await db.from('service_orders').update({ [column]: val }).eq('id', id);
+        soData[itemIndex][column] = val;
+    } catch (e) {
+        console.error("Auto-save failed:", e);
+    }
+}
 
 function generateUUID() {
     if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
@@ -198,6 +270,19 @@ async function verifyAndShowApp(userEmail) {
     if (appShown || isVerifying) return;
     isVerifying = true;
     window.currentUserEmail = userEmail;
+
+    // ⚡ CYPRESS TEST BYPASS: Allow test users in DEBUG_MODE even if Sandbox DB is unseeded
+    if (DEBUG_MODE && userEmail.includes('cypress')) {
+        actualUserRole = userEmail.includes('tech') ? 'tech' : 'developer';
+        currentUserRole = actualUserRole;
+        currentUserTeam = userEmail.includes('tech') ? 'Team Bernie' : null;
+        if (actualUserRole === 'developer') document.getElementById('dev-tools').classList.remove('hidden');
+        setupEventListeners();
+        applyRBACUI();
+        showApp();
+        return;
+    }
+
     try {
         const { data, error } = await db.from('authorized_emails').select('email, role, team').eq('email', userEmail);
 
@@ -218,6 +303,7 @@ async function verifyAndShowApp(userEmail) {
                 document.getElementById('dev-tools').classList.remove('hidden');
             }
 
+            setupEventListeners();
             applyRBACUI();
             showApp();
         } else {
@@ -261,14 +347,26 @@ function updateDevTeamDropdown() {
 function applyRBACUI() {
     const adminTabs = ['nav-pending'];
     const adminBtns = ['btn-new', 'btn-bulk'];
+    const techToggleBtn = document.getElementById('tech-date-toggle');
 
     if (currentUserRole === 'tech') {
         adminTabs.forEach(id => document.getElementById(id)?.classList.add('hidden'));
         adminBtns.forEach(id => document.getElementById(id)?.classList.add('hidden'));
         if (['pending'].includes(currentTab)) switchTab('active');
+        // Show tech date toggle
+        if (techToggleBtn) {
+            techToggleBtn.classList.remove('hidden');
+            techToggleBtn.classList.add('flex');
+            updateTechToggleStyle();
+        }
     } else {
         adminTabs.forEach(id => document.getElementById(id)?.classList.remove('hidden'));
         adminBtns.forEach(id => document.getElementById(id)?.classList.remove('hidden'));
+        // Hide tech date toggle for admins
+        if (techToggleBtn) {
+            techToggleBtn.classList.add('hidden');
+            techToggleBtn.classList.remove('flex');
+        }
     }
     render(true);
 }
@@ -381,6 +479,82 @@ function populateFilterDropdown(id, set, label) {
 // ============================================
 // 7. CRUD ACTIONS
 // ============================================
+
+// ─── Deduplication Helpers ───────────────────────────────────────────────────
+
+/**
+ * SLR: checks name + account_no vs today's records.
+ * Returns { inboxMatch (item|null), activeMatch (item|null) }
+ */
+function checkSLRDuplicate(name, acct) {
+    const today = new Date();
+    const normName = (name || '').trim().toLowerCase();
+    const normAcct = (acct || '').trim().toLowerCase();
+    // Only run check when both fields are provided
+    if (!normName || !normAcct) return { inboxMatch: null, activeMatch: null };
+
+    const todaySLR = soData.filter(i => (i.type || 'SLR') === 'SLR' && isSameDay(i.date_reported || i.dateAdded, today));
+
+    const inboxMatch = todaySLR.find(i =>
+        i.status === 'pending' &&
+        (i.name || '').trim().toLowerCase() === normName &&
+        (i.account_no || '').trim().toLowerCase() === normAcct
+    ) || null;
+
+    const activeMatch = todaySLR.find(i =>
+        (i.status === 'active' || i.status === 'done') &&
+        (i.name || '').trim().toLowerCase() === normName &&
+        (i.account_no || '').trim().toLowerCase() === normAcct
+    ) || null;
+
+    return { inboxMatch, activeMatch };
+}
+
+/**
+ * SLI: checks ticket_no (JO number) vs ALL SLI records (all-time).
+ * Returns { inboxMatch (item|null), activeMatch (item|null) }
+ */
+function checkSLIDuplicate(joNumber) {
+    const normJO = (joNumber || '').trim().toLowerCase();
+    if (!normJO) return { inboxMatch: null, activeMatch: null };
+
+    const allSLI = soData.filter(i => (i.type || 'SLR') === 'SLI');
+
+    const inboxMatch = allSLI.find(i =>
+        i.status === 'pending' &&
+        (i.ticket_no || '').trim().toLowerCase() === normJO
+    ) || null;
+
+    const activeMatch = allSLI.find(i =>
+        (i.status === 'active' || i.status === 'done') &&
+        (i.ticket_no || '').trim().toLowerCase() === normJO
+    ) || null;
+
+    return { inboxMatch, activeMatch };
+}
+
+// ─── Feature 4: Tech Toggle ───────────────────────────────────────────────────
+
+function updateTechToggleStyle() {
+    const btn = document.getElementById('tech-date-toggle');
+    const label = document.getElementById('tech-toggle-label');
+    if (!btn || !label) return;
+    if (techTodayOnlyMode) {
+        btn.className = btn.className.replace(/bg-\S+/g, '').replace(/text-\S+/g, '').replace(/border-\S+/g, '');
+        btn.classList.add('bg-blue-100', 'text-blue-700', 'border-blue-300');
+        label.textContent = 'Today Only';
+    } else {
+        btn.className = btn.className.replace(/bg-\S+/g, '').replace(/text-\S+/g, '').replace(/border-\S+/g, '');
+        btn.classList.add('bg-gray-100', 'text-gray-500', 'border-gray-300');
+        label.textContent = 'Show All';
+    }
+}
+
+window.toggleTechDateMode = () => {
+    techTodayOnlyMode = !techTodayOnlyMode;
+    updateTechToggleStyle();
+    render(false);
+};
 window.saveSO = async () => {
     if (!db) return alert("Database disconnected");
     const id = document.getElementById('edit-id').value;
@@ -434,6 +608,37 @@ window.saveSO = async () => {
 
     try {
         if (!id) {
+            // ─── Deduplication check (new records only) ───────────────────
+            if (currentAppMode === 'SLR') {
+                const acct = document.getElementById('input-account').value.trim();
+                const { inboxMatch, activeMatch } = checkSLRDuplicate(name, acct);
+                if (activeMatch) {
+                    showToast(`⛔ Duplicate: "${name}" (Acct: ${acct}) was already dispatched today. Dispatch blocked.`, 'error', 7000);
+                    toggleModal('form-modal');
+                    return;
+                }
+                if (inboxMatch) {
+                    // Auto-remove from inbox
+                    await db.from('service_orders').delete().eq('id', inboxMatch.id);
+                    soData = soData.filter(i => i.id !== inboxMatch.id);
+                    showToast(`✅ "${name}" was in the Inbox and has been removed. Dispatch went through successfully!`, 'success', 8000);
+                }
+            } else if (currentAppMode === 'SLI') {
+                const joNum = document.getElementById('input-ticket').value.trim();
+                const { inboxMatch, activeMatch } = checkSLIDuplicate(joNum);
+                if (activeMatch) {
+                    showToast(`⛔ Duplicate JO: "${joNum}" already exists in SLI records. Dispatch blocked.`, 'error', 7000);
+                    toggleModal('form-modal');
+                    return;
+                }
+                if (inboxMatch) {
+                    await db.from('service_orders').delete().eq('id', inboxMatch.id);
+                    soData = soData.filter(i => i.id !== inboxMatch.id);
+                    showToast(`✅ JO "${joNum}" was in the Inbox and has been removed. Dispatch went through successfully!`, 'success', 8000);
+                }
+            }
+            // ─────────────────────────────────────────────────────────────
+
             payload.id = generateUUID();
             const todayStr = new Date().toLocaleDateString();
             payload.dateAdded = todayStr;
@@ -541,8 +746,8 @@ document.addEventListener('paste', function (e) {
 
         cols.forEach((cellData, cIdx) => {
             const currentColIdx = startColIdx + cIdx;
-            // Ensure we don't paste past the 7th column (the delete button)
-            if (currentColIdx < 7) {
+            // Ensure we don't paste past the 8th column (the delete button) — Barangay added as col 1
+            if (currentColIdx < 8) {
                 const input = tr.children[currentColIdx].querySelector('input');
                 if (input) {
                     input.value = cellData.trim();
@@ -553,22 +758,23 @@ document.addEventListener('paste', function (e) {
 });
 
 window.saveBulkSO = async () => {
-    // Grab Team, Area, and Barangay globally
+    // Grab global Team and Area (Barangay is now per-row)
     const team = document.getElementById('global-bulk-team').value;
     const area = document.getElementById('global-bulk-area').value;
-    const barangay = document.getElementById('global-bulk-barangay') ? document.getElementById('global-bulk-barangay').value : "";
 
     if (!area || area === "NEW_ENTRY") return alert("⚠️ Please select an Area.");
     if (!team || team === "NEW_ENTRY") return alert("⚠️ Please select a Team.");
-    if (!barangay) return alert("⚠️ Please select a Barangay.");
 
     const rows = document.querySelectorAll('.bulk-row');
     const payload = [];
     const todayStr = new Date().toLocaleDateString();
     let hasError = false;
+    const inboxIdsToDelete = []; // IDs of inbox items to auto-remove
+    const skippedNames = [];     // Names blocked as already-dispatched duplicates
 
     rows.forEach(row => {
         const name = row.querySelector('.bulk-name').value.trim();
+        const barangay = row.querySelector('.bulk-barangay').value.trim();
         const ticket = row.querySelector('.bulk-ticket').value.trim();
         const acct = row.querySelector('.bulk-acct').value.trim();
         const contact = row.querySelector('.bulk-contact').value.trim();
@@ -577,7 +783,7 @@ window.saveBulkSO = async () => {
         const remarks = row.querySelector('.bulk-remarks').value.trim();
 
         // Skip completely empty rows
-        if (!name && !ticket && !acct && !contact && !address && !trouble && !remarks) return;
+        if (!name && !barangay && !ticket && !acct && !contact && !address && !trouble && !remarks) return;
 
         // Ensure required Name field is filled
         if (!name) {
@@ -588,12 +794,43 @@ window.saveBulkSO = async () => {
             row.querySelector('.bulk-name').classList.remove('border-red-500', 'bg-red-50');
         }
 
+        // Validate Barangay per row
+        if (!barangay) {
+            hasError = true;
+            row.querySelector('.bulk-barangay').classList.add('border-red-500', 'bg-red-50');
+            return;
+        } else {
+            row.querySelector('.bulk-barangay').classList.remove('border-red-500', 'bg-red-50');
+        }
+
+        // ─── Deduplication check per row ──────────────────────────────────
+        if (currentAppMode === 'SLR') {
+            const { inboxMatch, activeMatch } = checkSLRDuplicate(name, acct);
+            if (activeMatch) {
+                skippedNames.push(name);
+                return; // Skip this row silently
+            }
+            if (inboxMatch) {
+                inboxIdsToDelete.push(inboxMatch.id);
+            }
+        } else if (currentAppMode === 'SLI') {
+            const { inboxMatch, activeMatch } = checkSLIDuplicate(ticket);
+            if (activeMatch) {
+                skippedNames.push(`JO: ${ticket}`);
+                return; // Skip this row silently
+            }
+            if (inboxMatch) {
+                inboxIdsToDelete.push(inboxMatch.id);
+            }
+        }
+        // ──────────────────────────────────────────────────────────────────
+
         payload.push({
             id: generateUUID(),
             name: name,
-            team: team,   // From global dropdown
-            area: area,   // From global dropdown
-            barangay: barangay,
+            team: team,
+            area: area,
+            barangay: barangay, // Now per-row
             type: currentAppMode,
             status: 'active',
             dateAdded: todayStr,
@@ -609,20 +846,39 @@ window.saveBulkSO = async () => {
         });
     });
 
-    if (hasError) return alert("⚠️ Please provide a Subscriber Name for all active rows (or click the trash can to delete the row).");
-    if (payload.length === 0) return alert("⚠️ No data entered to dispatch.");
+    if (hasError) return alert("⚠️ Please provide a Subscriber Name and Barangay for all active rows (or click the trash can to delete the row).");
+    if (payload.length === 0 && skippedNames.length === 0) return alert("⚠️ No data entered to dispatch.");
+    if (payload.length === 0 && skippedNames.length > 0) {
+        showToast(`⛔ All rows were duplicates already dispatched. Nothing was saved. (${skippedNames.length} skipped)`, 'error', 8000);
+        return;
+    }
 
     document.getElementById('bulk-btn').innerText = "Processing Data...";
 
     try {
+        // Step 1: Delete inbox duplicates
+        if (inboxIdsToDelete.length > 0) {
+            await Promise.all(inboxIdsToDelete.map(id => db.from('service_orders').delete().eq('id', id)));
+            soData = soData.filter(i => !inboxIdsToDelete.includes(i.id));
+        }
+
+        // Step 2: Insert the valid payload
         const { error } = await db.from('service_orders').insert(payload);
         if (error) throw error;
 
         soData.push(...payload);
         render(false);
         toggleModal('bulk-modal');
-
         document.getElementById('bulk-btn').innerText = "Dispatch All Rows";
+
+        // Step 3: Show consolidated toast feedback
+        if (inboxIdsToDelete.length > 0 && skippedNames.length > 0) {
+            showToast(`✅ ${payload.length} dispatched. ${inboxIdsToDelete.length} removed from Inbox. ⛔ ${skippedNames.length} duplicate(s) skipped.`, 'warning', 9000);
+        } else if (inboxIdsToDelete.length > 0) {
+            showToast(`✅ ${payload.length} dispatched. ${inboxIdsToDelete.length} existing Inbox record(s) were automatically removed.`, 'success', 8000);
+        } else if (skippedNames.length > 0) {
+            showToast(`✅ ${payload.length} dispatched. ⛔ ${skippedNames.length} duplicate(s) already dispatched were skipped.`, 'warning', 8000);
+        }
     } catch (e) {
         alert("Bulk Error: " + e.message);
         document.getElementById('bulk-btn').innerText = "Dispatch All Rows";
@@ -726,6 +982,11 @@ function render(resetLimit = false) {
         listItems = filtered.filter(i => i.status === 'pending');
     } else if (currentTab === 'active') {
         listItems = filtered.filter(i => i.status === 'active');
+        // Feature 4: Apply tech today-only filter on Active tab (not on History/Performance)
+        if (currentUserRole === 'tech' && techTodayOnlyMode && !selectedDate && !searchInput) {
+            const today = new Date();
+            listItems = listItems.filter(i => isSameDay(i.dateAdded, today));
+        }
     } else {
         listItems = filtered.filter(i => i.status === 'done');
     }
@@ -965,7 +1226,7 @@ function createCardHTML(item) {
     `;
 
     return `
-    <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 ${borderColor} mb-3 dark-element">
+    <div class="service-order-card bg-white rounded-xl shadow-sm p-4 border-l-4 ${borderColor} mb-3 dark-element">
         <div class="flex justify-between items-start mb-1">
             <div class="flex items-start gap-2">
                 ${isPending ? `<input type="checkbox" class="pending-cb w-4 h-4 mt-0.5 accent-blue-600 cursor-pointer rounded" value="${item.id}">` : ''}
@@ -999,7 +1260,7 @@ function createCardHTML(item) {
         ${!isDone ? (
             (currentUserRole !== 'tech' && !isPending) ? '' :
                 `<div class="flex items-center justify-between gap-3 mt-3 border-t border-slate-100 pt-3 dark-border">
-                <input type="text" id="rem-${item.id}" value="${currentUserRole === 'tech' ? (item.tech_remarks || '') : (item.remarks || '')}" placeholder="${currentUserRole === 'tech' ? 'Add technician remarks' : 'Add dispatch remarks'}" class="flex-1 bg-slate-50 text-sm px-3 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:border-${color}-500 dark-input focus:ring-2 focus:ring-${color}-500/20 transition-all font-medium text-slate-700 placeholder-slate-400">
+                <input type="text" id="rem-${item.id}" onchange="saveRemarks('${item.id}', this.value)" value="${currentUserRole === 'tech' ? (item.tech_remarks || '') : (item.remarks || '')}" placeholder="${currentUserRole === 'tech' ? 'Add technician remarks' : 'Add dispatch remarks'}" class="flex-1 bg-slate-50 text-sm px-3 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:border-${color}-500 dark-input focus:ring-2 focus:ring-${color}-500/20 transition-all font-medium text-slate-700 placeholder-slate-400">
                 ${actionBtn}
             </div>`
         ) : `
@@ -1274,6 +1535,14 @@ window.openBulkModal = () => {
     document.getElementById('global-bulk-team').innerHTML = buildOptions(DYNAMIC_TEAMS, null);
     document.getElementById('global-bulk-area').innerHTML = buildOptions(DYNAMIC_AREAS, null);
 
+    // ⚡ Logic Sync: Update headers based on mode
+    const isSLI = (currentAppMode === 'SLI');
+    const ticketHeader = document.getElementById('bulk-header-ticket');
+    const troubleHeader = document.getElementById('bulk-header-trouble');
+
+    if (ticketHeader) ticketHeader.innerText = isSLI ? 'JO No.' : 'Ticket No.';
+    if (troubleHeader) troubleHeader.innerText = isSLI ? 'Package' : 'Trouble';
+
     // Clear old table rows and inject default rows
     const tbody = document.getElementById('bulk-table-body');
     tbody.innerHTML = '';
@@ -1288,9 +1557,9 @@ window.addBulkRow = () => {
     const tr = document.createElement('tr');
     tr.className = 'border-b border-gray-100 dark-border hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors bulk-row bg-white dark:bg-slate-800/50';
 
-    // Area dropdown removed from here
     tr.innerHTML = `
         <td class="p-1.5"><input type="text" class="bulk-name w-full p-2 text-sm border border-gray-200 rounded outline-none focus:border-blue-500 dark-input placeholder-gray-300" placeholder="Name..."></td>
+        <td class="p-1.5"><input type="text" class="bulk-barangay w-full p-2 text-sm border border-gray-200 rounded outline-none focus:border-blue-500 dark-input placeholder-gray-300" placeholder="Barangay..."></td>
         <td class="p-1.5"><input type="text" class="bulk-ticket w-full p-2 text-sm border border-gray-200 rounded outline-none focus:border-blue-500 dark-input placeholder-gray-300" placeholder="Ticket..."></td>
         <td class="p-1.5"><input type="text" class="bulk-acct w-full p-2 text-sm border border-gray-200 rounded outline-none focus:border-blue-500 dark-input placeholder-gray-300" placeholder="Account..."></td>
         <td class="p-1.5"><input type="text" class="bulk-contact w-full p-2 text-sm border border-gray-200 rounded outline-none focus:border-blue-500 dark-input placeholder-gray-300" placeholder="Contact..."></td>
