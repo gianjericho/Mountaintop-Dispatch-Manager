@@ -432,9 +432,22 @@ function showApp() {
 // ============================================
 async function startSupabaseListener() {
     try {
-        const { data, error } = await db.from('service_orders').select('*');
-        if (error) throw error;
-        soData = data || [];
+        let allData = [];
+        let rfrom = 0;
+        let rstep = 1000;
+
+        while (true) {
+            const { data, error } = await db.from('service_orders').select('*').range(rfrom, rfrom + rstep - 1);
+            if (error) throw error;
+            if (data && data.length > 0) {
+                allData.push(...data);
+                if (data.length < rstep) break;
+                rfrom += rstep;
+            } else {
+                break;
+            }
+        }
+        soData = allData;
 
         try {
             const { data: authData } = await db.rpc('get_all_teams');
