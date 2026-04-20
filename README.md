@@ -62,13 +62,7 @@ To run this project locally:
      "TEST_EMAIL": "your-test-email@example.com",
      "TEST_PASSWORD": "your-test-password"
    }
-4. **Run the production build script:**
-   ```Bash
-   npm run build
-   ```
-   *Note: This generates a minified `app.min.js` using Terser to optimize performance while ensuring core logic integrity.*
-
-5. **Open locally:** Use Live Server (VS Code extension) or any local HTTP server to open `index.html`
+4. **Open locally:** Use Live Server (VS Code extension) or any local HTTP server to open `index.html`
 
 ## 🛡️ Architecture & Security Note
 

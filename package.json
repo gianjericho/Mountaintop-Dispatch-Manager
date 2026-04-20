@@ -4,7 +4,7 @@
   "description": "",
   "main": "app.js",
   "scripts": {
-    "build": "terser app.js --compress --mangle --output stable-dispatch.min.js",
+    "build": "echo 'Build step removed. Using raw app.js'",
     "start": "http-server . -p 5500 -c-1",
     "cy:run": "cypress run",
     "test": "start-server-and-test start http://127.0.0.1:5500 cy:run"
