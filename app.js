@@ -1079,7 +1079,7 @@ function renderList(items) {
         const sortedItems = itemsWithIndex.sort((a, b) => {
             let timeA = parseSafeDate(a.date_reported || a.dateAdded).getTime();
             let timeB = parseSafeDate(b.date_reported || b.dateAdded).getTime();
-            if (timeA !== timeB) return timeA - timeB; // Ascending -> Oldest First
+            if (timeA !== timeB) return timeB - timeA; // Descending -> Newest First
             return a._listIndex - b._listIndex;
         });
 
@@ -1115,7 +1115,7 @@ function renderList(items) {
         const sortedDates = Object.keys(groups).sort((a, b) => {
             if (a === "Pending Requests" || a === "Unknown Date") return 1;
             if (b === "Pending Requests" || b === "Unknown Date") return -1;
-            return new Date(a) - new Date(b); // Oldest group first
+            return new Date(b) - new Date(a); // Newest group first
         });
 
         for (const date of sortedDates) {
