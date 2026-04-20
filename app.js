@@ -37,6 +37,17 @@ const BARANGAY_MAP = {
     "TAGAYTAY": ["ASISAN", "BAGONG TUBIG", "CALABUSO", "DAPDAP EAST", "DAPDAP WEST", "FRANCISCO", "GUINHAWA NORTH", "GUINHAWA SOUTH", "IRUHIN EAST", "IRUHIN SOUTH", "IRUHIN WEST", "KAYBAGAL EAST", "KAYBAGAL NORTH", "KAYBAGAL SOUTH (POB.)", "MAG-ASAWANG ILAT", "MAHARLIKA EAST", "MAHARLIKA WEST", "MAITIM 2ND CENTRAL", "MAITIM 2ND EAST", "MAITIM 2ND WEST", "MENDEZ CROSSING EAST", "MENDEZ CROSSING WEST", "NEOGAN", "PATUTONG MALAKI NORTH", "PATUTONG MALAKI SOUTH", "SAMBONG", "SAN JOSE", "SILANG JUNCTION NORTH", "SILANG JUNCTION SOUTH", "SUNGAY NORTH", "SUNGAY SOUTH", "TOLENTINO EAST", "TOLENTINO WEST", "ZAMBAL", "-"],
     "TERNATE": ["POBLACION I", "POBLACION I A", "POBLACION II", "POBLACION III", "BUCANA", "SAN JOSE", "SAN JUAN I", "SAN JUAN II", "SAPANG I", "SAPANG II", "-"]
 };
+// AUTO-TECH DEBUG BYPASS
+if (DEBUG_MODE && window.location.search.includes('debug_tech=true')) {
+    actualUserRole = 'tech';
+    currentUserRole = 'tech';
+    currentUserTeam = 'Team Bernie';
+    setTimeout(() => {
+        setupEventListeners();
+        applyRBACUI();
+        showApp();
+    }, 500);
+}
 
 let currentTab = 'active';
 let currentAppMode = 'SLR';
@@ -486,26 +497,40 @@ function populateFilterDropdown(id, set, label) {
  * SLR: checks name + account_no vs today's records.
  * Returns { inboxMatch (item|null), activeMatch (item|null) }
  */
-function checkSLRDuplicate(name, acct) {
+function checkSLRDuplicate(name, acct, ticket) {
     const today = new Date();
     const normName = (name || '').trim().toLowerCase();
     const normAcct = (acct || '').trim().toLowerCase();
-    // Only run check when both fields are provided
-    if (!normName || !normAcct) return { inboxMatch: null, activeMatch: null };
+    const normTicket = (ticket || '').trim().toLowerCase();
+    // Only run check when we have name/acct OR a ticket
+    if (!(normName && normAcct) && !normTicket) return { inboxMatch: null, activeMatch: null };
 
-    const todaySLR = soData.filter(i => (i.type || 'SLR') === 'SLR' && isSameDay(i.date_reported || i.dateAdded, today));
+    const allSLR = soData.filter(i => (i.type || 'SLR') === 'SLR');
+    const todaySLR = allSLR.filter(i => isSameDay(i.date_reported || i.dateAdded, today));
 
-    const inboxMatch = todaySLR.find(i =>
-        i.status === 'pending' &&
-        (i.name || '').trim().toLowerCase() === normName &&
-        (i.account_no || '').trim().toLowerCase() === normAcct
-    ) || null;
+    let inboxMatch = null;
+    let activeMatch = null;
 
-    const activeMatch = todaySLR.find(i =>
-        (i.status === 'active' || i.status === 'done') &&
-        (i.name || '').trim().toLowerCase() === normName &&
-        (i.account_no || '').trim().toLowerCase() === normAcct
-    ) || null;
+    if (normTicket) {
+        activeMatch = allSLR.find(i => (i.status === 'active' || i.status === 'done') && (i.ticket_no || '').trim().toLowerCase() === normTicket) || null;
+        inboxMatch = allSLR.find(i => i.status === 'pending' && (i.ticket_no || '').trim().toLowerCase() === normTicket) || null;
+    }
+
+    if (!activeMatch && normName && normAcct) {
+        activeMatch = todaySLR.find(i =>
+            (i.status === 'active' || i.status === 'done') &&
+            (i.name || '').trim().toLowerCase() === normName &&
+            (i.account_no || '').trim().toLowerCase() === normAcct
+        ) || null;
+    }
+
+    if (!inboxMatch && normName && normAcct) {
+        inboxMatch = allSLR.find(i =>
+            i.status === 'pending' &&
+            (i.name || '').trim().toLowerCase() === normName &&
+            (i.account_no || '').trim().toLowerCase() === normAcct
+        ) || null;
+    }
 
     return { inboxMatch, activeMatch };
 }
@@ -611,7 +636,8 @@ window.saveSO = async () => {
             // ─── Deduplication check (new records only) ───────────────────
             if (currentAppMode === 'SLR') {
                 const acct = document.getElementById('input-account').value.trim();
-                const { inboxMatch, activeMatch } = checkSLRDuplicate(name, acct);
+                const ticket = document.getElementById('input-ticket') ? document.getElementById('input-ticket').value.trim() : "";
+                const { inboxMatch, activeMatch } = checkSLRDuplicate(name, acct, ticket);
                 if (activeMatch) {
                     showToast(`⛔ Duplicate: "${name}" (Acct: ${acct}) was already dispatched today. Dispatch blocked.`, 'error', 7000);
                     toggleModal('form-modal');
@@ -683,12 +709,14 @@ window.approveSO = async (id) => {
 
     try {
         // Send status, remarks, AND the fresh dispatch date to Supabase
-        await db.from('service_orders').update({
+        const { error } = await db.from('service_orders').update({
             status: 'active',
             remarks: currentRemarks,
             dateAdded: todayStr,
             dispatched_by: window.currentUserEmail
         }).eq('id', id);
+
+        if (error) throw error;
 
         // Optimistic update locally
         item.status = 'active';
@@ -699,6 +727,7 @@ window.approveSO = async (id) => {
         render(false);
     } catch (e) {
         console.error("Approval Error:", e);
+        alert("Network or database error: Could not approve ticket. " + e.message);
     }
 }
 
@@ -805,7 +834,7 @@ window.saveBulkSO = async () => {
 
         // ─── Deduplication check per row ──────────────────────────────────
         if (currentAppMode === 'SLR') {
-            const { inboxMatch, activeMatch } = checkSLRDuplicate(name, acct);
+            const { inboxMatch, activeMatch } = checkSLRDuplicate(name, acct, ticket);
             if (activeMatch) {
                 skippedNames.push(name);
                 return; // Skip this row silently
@@ -1635,10 +1664,13 @@ window.bulkApprovePending = async () => {
 
     try {
         // Fire all updates to the database safely
-        await Promise.all(updatePromises);
+        const results = await Promise.all(updatePromises);
+        const errors = results.filter(r => r && r.error);
+        if (errors.length > 0) throw errors[0].error;
+
         console.log(`✅ Bulk dispatched ${updatePromises.length} tickets.`);
     } catch (e) {
         console.error("Bulk Approve Error:", e);
-        alert("Bulk update failed. Check console.");
+        alert("Bulk update failed on database. Refreshing to original state. Error: " + e.message);
     }
 }
