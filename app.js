@@ -1024,10 +1024,17 @@ function render(resetLimit = false) {
         listItems = filtered.filter(i => i.status === 'pending');
     } else if (currentTab === 'active') {
         listItems = filtered.filter(i => i.status === 'active');
-        // Feature 4: Apply tech today-only filter on Active tab (not on History/Performance)
+        // Feature 4: Apply tech today-only filter on Active tab
         if (currentUserRole === 'tech' && techTodayOnlyMode && !selectedDate && !searchInput) {
             const today = new Date();
             listItems = listItems.filter(i => isSameDay(i.dateAdded, today));
+        }
+    } else if (currentTab === 'history') {
+        listItems = filtered.filter(i => i.status === 'done');
+        // Mirror tech today-only filter on History tab as well
+        if (currentUserRole === 'tech' && techTodayOnlyMode && !selectedDate && !searchInput) {
+            const today = new Date();
+            listItems = listItems.filter(i => isSameDay(i.dateDone, today));
         }
     } else {
         listItems = filtered.filter(i => i.status === 'done');
@@ -1121,7 +1128,7 @@ function renderList(items) {
         // Default Grouping by Date
         const groups = {};
         items.forEach(item => {
-            const dateKey = currentTab === 'active' ? item.dateAdded : (item.dateDone || "Pending Requests");
+            const dateKey = currentTab === 'active' ? item.dateAdded : (item.dateDone || "Unknown Date");
             if (!groups[dateKey]) groups[dateKey] = [];
             groups[dateKey].push(item);
         });
