@@ -258,7 +258,7 @@ window.exportCSV = () => {
         let csvRow = `${row.id},${safeName},${row.team},${row.area},${row.status},${row.dateAdded},${row.dateDone || ""},${row.type || "SLR"},${safeRem}`;
         csvContent += csvRow + "\n";
     });
-    const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `Dispatch_Export_${currentAppMode}_${new Date().toLocaleDateString()}.csv`); document.body.appendChild(link); link.click();
+    const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `Dispatch_Export_${currentAppMode}_${new Date().toLocaleDateString('en-US')}.csv`); document.body.appendChild(link); link.click();
 }
 
 // ============================================
@@ -679,7 +679,7 @@ window.saveSO = async () => {
             // ─────────────────────────────────────────────────────────────
 
             payload.id = generateUUID();
-            const todayStr = new Date().toLocaleDateString();
+            const todayStr = new Date().toLocaleDateString('en-US');
             payload.dateAdded = todayStr;
             payload.date_reported = todayStr;
             payload.pic = false;
@@ -718,7 +718,7 @@ window.approveSO = async (id) => {
     // Grab the value from the remarks input box right before we save
     const remInput = document.getElementById(`rem-${id}`);
     const currentRemarks = remInput ? remInput.value : (item.remarks || "");
-    const todayStr = new Date().toLocaleDateString();
+    const todayStr = new Date().toLocaleDateString('en-US');
 
     try {
         // Send status, remarks, AND the fresh dispatch date to Supabase
@@ -748,7 +748,7 @@ window.deleteSO = async (id) => { if (!confirm("Delete this record permanently?"
 window.rescheduleSO = async (id) => { if (!confirm("Return this ticket to the Inbox for rescheduling?")) return; try { const { error } = await db.from('service_orders').update({ status: 'pending', dateAdded: null }).eq('id', id); if (error) throw error; const index = soData.findIndex(i => i.id === id); if (index !== -1) { soData[index].status = 'pending'; soData[index].dateAdded = null; } render(false); } catch (e) { alert("Reschedule Failed: " + e.message); } }
 window.renameTeam = async (oldName) => { const newName = prompt(`Rename "${oldName}" to:`, oldName); if (!newName || newName === oldName) return; if (!confirm(`Rename "${oldName}" to "${newName}" everywhere?`)) return; try { const { error } = await db.from('service_orders').update({ team: newName }).eq('team', oldName); if (error) throw error; soData.forEach(item => { if (item.team === oldName) item.team = newName; }); extractDynamicOptions(); render(false); toggleSettings(); } catch (e) { alert("Rename Failed: " + e.message); } }
 window.deleteTeam = async (teamName) => { if (!confirm(`Delete ALL records for "${teamName}"?`)) return; try { const { error } = await db.from('service_orders').delete().eq('team', teamName); if (error) throw error; soData = soData.filter(item => item.team !== teamName); extractDynamicOptions(); render(false); toggleSettings(); } catch (e) { alert("Delete Failed: " + e.message); } }
-window.markDone = async (id) => { const itemIndex = soData.findIndex(i => i.id == id); if (itemIndex === -1) return; const rem = document.getElementById(`rem-${id}`).value || soData[itemIndex].tech_remarks || ""; const dateDone = new Date().toLocaleDateString(); try { await db.from('service_orders').update({ status: 'done', tech_remarks: rem, dateDone: dateDone }).eq('id', id); soData[itemIndex].status = 'done'; soData[itemIndex].tech_remarks = rem; soData[itemIndex].dateDone = dateDone; render(false); } catch (e) { console.error(e); } }
+window.markDone = async (id) => { const itemIndex = soData.findIndex(i => i.id == id); if (itemIndex === -1) return; const rem = document.getElementById(`rem-${id}`).value || soData[itemIndex].tech_remarks || ""; const dateDone = new Date().toLocaleDateString('en-US'); try { await db.from('service_orders').update({ status: 'done', tech_remarks: rem, dateDone: dateDone }).eq('id', id); soData[itemIndex].status = 'done'; soData[itemIndex].tech_remarks = rem; soData[itemIndex].dateDone = dateDone; render(false); } catch (e) { console.error(e); } }
 window.toggleCheck = async (id, key) => { const index = soData.findIndex(i => i.id == id); if (index === -1) return; const newVal = !soData[index][key]; soData[index][key] = newVal; render(false); const updateObj = {}; updateObj[key] = newVal; await db.from('service_orders').update(updateObj).eq('id', id); }
 document.addEventListener('paste', function (e) {
     // Only intercept if pasting inside the bulk table
@@ -809,7 +809,7 @@ window.saveBulkSO = async () => {
 
     const rows = document.querySelectorAll('.bulk-row');
     const payload = [];
-    const todayStr = new Date().toLocaleDateString();
+    const todayStr = new Date().toLocaleDateString('en-US');
     let hasError = false;
     const inboxIdsToDelete = []; // IDs of inbox items to auto-remove
     const skippedNames = [];     // Names blocked as already-dispatched duplicates
@@ -1653,7 +1653,7 @@ window.bulkApprovePending = async () => {
 
     const idsToApprove = Array.from(checkedNodes).map(cb => cb.value);
     const updatePromises = [];
-    const todayStr = new Date().toLocaleDateString();
+    const todayStr = new Date().toLocaleDateString('en-US');
 
     idsToApprove.forEach(id => {
         const item = soData.find(i => i.id === id);
