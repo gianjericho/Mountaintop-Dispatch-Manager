@@ -220,7 +220,7 @@ export default function ListView({ activeTab, appMode }: { activeTab: string; ap
             className="bg-gray-50 border border-gray-200 text-gray-600 text-xs font-bold py-1 px-2 rounded outline-none focus:border-blue-500 cursor-pointer dark-input"
           >
             <option value="default">Default</option>
-            <option value="aging">Aging Tickets</option>
+            <option value="aging">Aging Tickets (Oldest First)</option>
             <option value="date">Sort by Date</option>
             <option value="dispatch">Sort by Dispatch Date</option>
           </select>
@@ -250,15 +250,30 @@ export default function ListView({ activeTab, appMode }: { activeTab: string; ap
               <p className="text-sm">No records found.</p>
             </div>
           ) : (
-            visibleOrders.map(order => (
+            visibleOrders.map(o => (
               <DispatchCard 
-                key={order.id} 
-                order={order} 
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                onDispatch={handleDispatch}
-                onMarkDone={handleMarkDone}
-                onReschedule={handleReschedule}
+                key={o.id} 
+                order={o} 
+                appMode={appMode}
+                onEdit={o => window.dispatchEvent(new CustomEvent('open-dispatch-modal', { detail: o }))}
+                onDelete={id => window.dispatchEvent(new CustomEvent('delete-dispatch', { detail: id }))}
+                onMarkDone={id => window.dispatchEvent(new CustomEvent('mark-done', { detail: id }))}
+                onReschedule={id => window.dispatchEvent(new CustomEvent('reschedule', { detail: id }))}
+                onDispatch={id => window.dispatchEvent(new CustomEvent('dispatch', { detail: id }))}
+                onUpdateRemarks={async (id, field, value) => {
+                  try {
+                    await updateOrder(id, { [field]: value });
+                  } catch (e) {
+                    console.error('Failed to update remarks', e);
+                  }
+                }}
+                onToggleCheck={async (id, field, value) => {
+                  try {
+                    await updateOrder(id, { [field]: value });
+                  } catch (e) {
+                    console.error('Failed to update check', e);
+                  }
+                }}
               />
             ))
           )}

@@ -84,7 +84,7 @@ export default function PerformanceView({ activeTab, appMode }: { activeTab: str
         <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white rounded-full opacity-10 blur-xl"></div>
         <div className="flex justify-between items-end mb-2">
           <div>
-            <p className="text-white/60 text-xs font-bold uppercase tracking-wider">Efficiency Score</p>
+            <p className="text-white/60 text-xs font-bold uppercase tracking-wider">MOUNTAINTOP Efficiency Score</p>
             <h2 className="text-3xl font-bold">{percent}%</h2>
           </div>
           <div className="text-right">
