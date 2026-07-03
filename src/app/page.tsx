@@ -69,14 +69,16 @@ export default function Home() {
 
   return (
     <main>
-      <Header 
-        appMode={appMode} 
-        setAppMode={setAppMode} 
-        onOpenBulk={() => setBulkModalOpen(true)}
-        onOpenNew={handleOpenNewDispatch}
-        onOpenSettings={() => setSettingsModalOpen(true)}
-      />
-      <Tabs activeTab={activeTab} setActiveTab={setActiveTab} />
+      <div className="bg-white shadow-sm sticky top-0 z-40 dark-element transition-colors duration-300">
+        <Header 
+          appMode={appMode} 
+          setAppMode={setAppMode} 
+          onOpenBulk={() => setBulkModalOpen(true)}
+          onOpenNew={handleOpenNewDispatch}
+          onOpenSettings={() => setSettingsModalOpen(true)}
+        />
+        <Tabs activeTab={activeTab} setActiveTab={setActiveTab} />
+      </div>
       
       <div className="max-w-lg mx-auto p-4">
         <ListView activeTab={activeTab} appMode={appMode} />

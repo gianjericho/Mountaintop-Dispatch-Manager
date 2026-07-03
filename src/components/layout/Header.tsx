@@ -33,8 +33,7 @@ export default function Header({ appMode, setAppMode, onOpenBulk, onOpenNew, onO
   };
 
   return (
-    <div className="bg-white shadow-sm sticky top-0 z-40 dark-element transition-colors duration-300">
-      <div className="max-w-lg mx-auto px-4 py-3">
+    <div className="max-w-lg mx-auto px-4 py-3">
         <div className="flex justify-between items-center mb-3">
           <div className="flex items-center gap-2 bg-slate-100 dark-bg-sub p-1 rounded-lg transition-colors">
             <button
@@ -86,7 +85,6 @@ export default function Header({ appMode, setAppMode, onOpenBulk, onOpenNew, onO
             </button>
           </div>
         </div>
-      </div>
     </div>
   );
 }

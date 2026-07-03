@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { authService } from '@/services/authService';
-import { Layers, AlertCircle } from 'lucide-react';
 import Image from 'next/image';
 
 export default function LoginScreen() {
@@ -22,10 +21,10 @@ export default function LoginScreen() {
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900 flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-sm rounded-2xl p-8 shadow-2xl animate-in fade-in zoom-in duration-300">
+      <div className="bg-white w-full max-w-sm rounded-2xl p-8 shadow-2xl fade-in">
         <div className="text-center mb-8">
           <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Layers className="text-blue-600" size={32} />
+            <i className="fa-solid fa-layer-group text-3xl text-blue-600"></i>
           </div>
           <h1 className="text-2xl font-bold text-gray-800">Dispatch Manager</h1>
         </div>
@@ -48,7 +47,7 @@ export default function LoginScreen() {
           
           {error && (
             <p className="text-red-500 text-xs text-center flex items-center justify-center gap-1 mt-2">
-              <AlertCircle size={14} />
+              <i className="fa-solid fa-circle-exclamation"></i>
               {error}
             </p>
           )}
