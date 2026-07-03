@@ -5,18 +5,23 @@ import { authService, AuthUser } from '@/services/authService';
 
 interface AuthContextType {
   user: AuthUser | null;
+  actualUser: AuthUser | null;
   loading: boolean;
   signOut: () => Promise<void>;
+  setImpersonation: (role: string | null, team: string | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  actualUser: null,
   loading: true,
   signOut: async () => {},
+  setImpersonation: () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [actualUser, setActualUser] = useState<AuthUser | null>(null);
+  const [impersonatedUser, setImpersonatedUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -27,7 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const session = await authService.getSession();
         if (session?.user?.email) {
           const authUser = await authService.verifyUser(session.user.email);
-          if (mounted) setUser(authUser);
+          if (mounted) setActualUser(authUser);
         }
       } catch (error) {
         console.error("Auth initialization error:", error);
@@ -41,9 +46,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = authService.onAuthStateChange(async (event, session) => {
       if (session?.user?.email) {
         const authUser = await authService.verifyUser(session.user.email);
-        if (mounted) setUser(authUser);
+        if (mounted) setActualUser(authUser);
       } else {
-        if (mounted) setUser(null);
+        if (mounted) setActualUser(null);
       }
     });
 
@@ -55,11 +60,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await authService.signOut();
-    setUser(null);
+    setActualUser(null);
+    setImpersonatedUser(null);
   };
 
+  const setImpersonation = (role: string | null, team: string | null) => {
+    if (!actualUser || actualUser.role !== 'developer') return;
+    if (!role) {
+      setImpersonatedUser(null);
+    } else {
+      setImpersonatedUser({
+        ...actualUser,
+        role: role as 'admin' | 'tech' | 'developer',
+        team: team || actualUser.team,
+      });
+    }
+  };
+
+  const user = impersonatedUser || actualUser;
+
   return (
-    <AuthContext.Provider value={{ user, loading, signOut }}>
+    <AuthContext.Provider value={{ user, actualUser, loading, signOut, setImpersonation }}>
       {children}
     </AuthContext.Provider>
   );

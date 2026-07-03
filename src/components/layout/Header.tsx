@@ -1,16 +1,36 @@
 "use client";
 
 import { useAuth } from '@/components/auth/AuthProvider';
-import { Moon, LogOut, Settings, ListChecks, Plus } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 interface HeaderProps {
   appMode: string;
   setAppMode: (mode: string) => void;
+  onOpenBulk: () => void;
+  onOpenNew: () => void;
+  onOpenSettings: () => void;
 }
 
-export default function Header({ appMode, setAppMode }: HeaderProps) {
+export default function Header({ appMode, setAppMode, onOpenBulk, onOpenNew, onOpenSettings }: HeaderProps) {
   const { signOut } = useAuth();
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    // Check initial preference
+    if (document.body.classList.contains('dark-mode')) {
+      setIsDarkMode(true);
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const isDark = document.body.classList.toggle('dark-mode');
+    setIsDarkMode(isDark);
+    if (isDark) {
+      document.body.style.backgroundColor = '#0f172a'; // slate-900
+    } else {
+      document.body.style.backgroundColor = '#f1f5f9'; // slate-100
+    }
+  };
 
   return (
     <div className="bg-white shadow-sm sticky top-0 z-40 dark-element transition-colors duration-300">
@@ -35,14 +55,14 @@ export default function Header({ appMode, setAppMode }: HeaderProps) {
             </button>
           </div>
           <div className="flex gap-2">
-            <button className="text-gray-400 hover:text-purple-500 p-1">
-              <Moon size={18} />
+            <button onClick={toggleTheme} className="text-gray-400 hover:text-purple-500 p-1">
+              <i className="fa-solid fa-moon text-lg"></i>
             </button>
             <button onClick={signOut} className="text-gray-400 hover:text-red-500 p-1">
-              <LogOut size={18} />
+              <i className="fa-solid fa-right-from-bracket text-lg"></i>
             </button>
-            <button className="text-gray-400 hover:text-blue-600 p-1">
-              <Settings size={18} />
+            <button onClick={onOpenSettings} className="text-gray-400 hover:text-blue-600 p-1">
+              <i className="fa-solid fa-gear text-lg"></i>
             </button>
           </div>
         </div>
@@ -52,11 +72,17 @@ export default function Header({ appMode, setAppMode }: HeaderProps) {
             {appMode} Dispatch
           </h1>
           <div className="flex gap-2">
-            <button className="bg-purple-100 text-purple-600 px-3 py-1 rounded-lg text-sm font-bold hover:bg-purple-200 transition border border-purple-200 flex items-center gap-1">
-              <ListChecks size={16} /> Bulk
+            <button
+              onClick={onOpenBulk}
+              className="bg-purple-100 text-purple-600 px-3 py-1 rounded-lg text-sm font-bold hover:bg-purple-200 transition border border-purple-200"
+            >
+              <i className="fa-solid fa-list-check mr-1"></i> Bulk
             </button>
-            <button className="bg-green-600 text-white px-3 py-1 rounded-lg text-sm font-bold hover:bg-green-700 shadow-md shadow-green-600/30 transition flex items-center gap-1">
-              <Plus size={16} /> New
+            <button
+              onClick={onOpenNew}
+              className="bg-green-600 text-white px-3 py-1 rounded-lg text-sm font-bold hover:bg-green-700 shadow-md shadow-green-600/30 transition"
+            >
+              + New
             </button>
           </div>
         </div>
