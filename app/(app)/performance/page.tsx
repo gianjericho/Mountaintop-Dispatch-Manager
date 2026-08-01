@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { calculatePerformanceStats } from '../../../lib/domain/performance';
-import { getMonthRange, formatDateInput } from '../../../lib/domain/dates';
+import { getMonthRange } from '../../../lib/domain/dates';
 import { useAppContext } from '../app-context';
 import {
   TrendingUp,
@@ -14,7 +14,10 @@ import {
   Award,
   Download,
   MapPin,
-  UserCheck
+  UserCheck,
+  ChevronRight,
+  History,
+  Tag
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -35,6 +38,7 @@ export default function PerformancePage() {
   const [period, setPeriod] = useState<'thisMonth' | 'lastMonth' | 'custom' | 'all'>('thisMonth');
   const [customStart, setCustomStart] = useState<string>('');
   const [customEnd, setCustomEnd] = useState<string>('');
+  const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
 
   let startDate: Date | null = null;
   let endDate: Date | null = null;
@@ -55,6 +59,23 @@ export default function PerformancePage() {
   // Filter orders by mode
   const modeOrders = (orders || []).filter(o => o.type === appMode);
   const stats = calculatePerformanceStats(modeOrders, startDate, endDate);
+
+  // Derive Team List
+  const teamNames = Object.keys(stats.teamStats).sort();
+
+  // If a team is selected, derive team detail metrics
+  const activeTeamName = selectedTeam && stats.teamStats[selectedTeam] ? selectedTeam : (teamNames[0] || null);
+
+  const activeTeamOrders = modeOrders.filter(o => activeTeamName && o.team === activeTeamName);
+  const activeTeamDoneOrders = activeTeamOrders.filter(o => o.status === 'done');
+
+  // Top Area for Selected Team
+  const teamAreaMap: { [area: string]: number } = {};
+  activeTeamOrders.forEach(o => {
+    const a = o.area || 'Unknown';
+    teamAreaMap[a] = (teamAreaMap[a] || 0) + 1;
+  });
+  const topTeamArea = Object.keys(teamAreaMap).sort((a, b) => teamAreaMap[b] - teamAreaMap[a])[0] || 'N/A';
 
   // Per-Technician Leaderboard
   const techMap: { [tech: string]: { dispatched: number; resolved: number } } = {};
@@ -132,7 +153,7 @@ export default function PerformancePage() {
             Performance & Analytics Dashboard ({appMode})
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Real-time technician efficiency, trouble type breakdown, per-tech leaderboard, and barangay geography.
+            Real-time technician efficiency, trouble type breakdown, team drilldown, and barangay geography.
           </p>
         </div>
 
@@ -205,7 +226,6 @@ export default function PerformancePage() {
 
       {/* Overview Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Efficiency */}
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-slate-400">Global Efficiency</p>
@@ -217,7 +237,6 @@ export default function PerformancePage() {
           </div>
         </div>
 
-        {/* Total Dispatched */}
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-slate-400">Total Dispatched</p>
@@ -229,7 +248,6 @@ export default function PerformancePage() {
           </div>
         </div>
 
-        {/* Total Resolved */}
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-slate-400">Total Resolved</p>
@@ -240,6 +258,97 @@ export default function PerformancePage() {
             <CheckCircle className="w-6 h-6" />
           </div>
         </div>
+      </div>
+
+      {/* Per-Team Interactive Cards & Team Drilldown View */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg space-y-4">
+        <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+          <Users className="w-4 h-4 text-cyan-400" />
+          Per-Team Performance Metrics (Click card to inspect top area & history)
+        </h3>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {teamNames.map(teamName => {
+            const team = stats.teamStats[teamName];
+            const isSelected = activeTeamName === teamName;
+            return (
+              <button
+                key={teamName}
+                onClick={() => setSelectedTeam(teamName)}
+                className={`text-left bg-slate-950 border rounded-xl p-4 space-y-2 transition-all cursor-pointer ${
+                  isSelected
+                    ? 'border-cyan-500 ring-2 ring-cyan-500/40 shadow-lg'
+                    : 'border-slate-800 hover:border-slate-700'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-200 text-sm flex items-center gap-1.5">
+                    {teamName}
+                    {isSelected && <ChevronRight className="w-4 h-4 text-cyan-400" />}
+                  </span>
+                  <span className="text-xs font-mono font-bold text-cyan-400">{team.efficiency}%</span>
+                </div>
+                <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                  <div
+                    className="bg-cyan-500 h-full rounded-full transition-all"
+                    style={{ width: `${team.efficiency}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
+                  <span>Dispatched: {team.dispatched}</span>
+                  <span>Resolved: {team.resolved}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Selected Team Detail View (Top Area & History) */}
+        {activeTeamName && (
+          <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 mt-4 space-y-4 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+              <div>
+                <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                  <Tag className="w-4 h-4 text-cyan-400" />
+                  Team Details — {activeTeamName}
+                </h4>
+                <p className="text-slate-400 text-[11px] mt-0.5">
+                  Top Area Served: <strong className="text-cyan-300 font-mono">{topTeamArea}</strong> | Total Dispatched: <strong className="text-amber-300 font-mono">{activeTeamOrders.length}</strong> | Total Completed: <strong className="text-emerald-300 font-mono">{activeTeamDoneOrders.length}</strong>
+                </p>
+              </div>
+            </div>
+
+            {/* Team Recent Completion History */}
+            <div className="space-y-2">
+              <h5 className="font-semibold text-slate-300 flex items-center gap-1.5">
+                <History className="w-3.5 h-3.5 text-emerald-400" />
+                Recent Completion History ({activeTeamDoneOrders.length} resolved tickets):
+              </h5>
+
+              {activeTeamDoneOrders.length === 0 ? (
+                <p className="text-slate-500 py-3 text-center">No completed tickets for {activeTeamName} in selected period.</p>
+              ) : (
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {activeTeamDoneOrders.slice(0, 15).map(order => (
+                    <div key={order.id} className="bg-slate-900 p-2.5 rounded border border-slate-800 flex items-center justify-between font-mono">
+                      <div>
+                        <span className="font-bold text-slate-200">{order.name}</span>
+                        <span className="text-slate-400 text-[11px] ml-2">Ticket: {order.ticket_no} | Account: {order.account_no}</span>
+                        <p className="text-[10px] text-slate-500 font-sans mt-0.5">Area: {order.area} — {order.barangay} | Trouble: {order.trouble_report}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-bold">
+                          DONE
+                        </span>
+                        <p className="text-[10px] text-slate-500 mt-0.5">{order.dateDone || order.date_reported || 'Resolved'}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Charts Row */}
