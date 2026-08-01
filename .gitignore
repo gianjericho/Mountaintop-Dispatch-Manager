@@ -1,22 +1,25 @@
-cypress.env.json
 # Dependency directories
 node_modules/
 
-# Mac OS system junk files
+# Mac OS system files
 .DS_Store
 
-# Security: Testing environment variables
+# Next.js & Build outputs
+.next/
+next-env.d.ts
+tsconfig.tsbuildinfo
+out/
+build/
+
+# Local Environment Variables & Supabase CLI cache
+.env.local
+.env*.local
+supabase/
+
+# Cypress testing files
 cypress.env.json
 cypress.env
 
-# Editor directories (optional, keeps repo clean if you use VS Code)
+# Editor & IDE directories
 .vscode/
 .idea/
-
-# Prompting Guide
-.prompting_guide.md
-
-# Build & Local Env
-.next/
-next-env.d.ts
-.env.localsupabase/

@@ -1,69 +1,67 @@
-# 📡 Dispatch Manager
+# 🏔️ Mountaintop Dispatch Manager
 
-> An enterprise-grade, real-time web application engineered to streamline field service operations, triage incoming tickets, and track team performance using Role-Based Access Control (RBAC) and Bi-Directional syncing.
+A real-time field dispatch and operations management dashboard built with Next.js 15, TypeScript, Tailwind CSS v4, and Supabase. Consumes incoming ticket streams from Google Apps Script monitoring sheets ([`ticket-monitoring`](https://github.com/gianjericho/ticket-monitoring)).
 
-[![Live Demo](https://img.shields.io/badge/Live_Demo-View_Website-blue?style=for-the-badge)](https://mountaintop-dispatch-manager.netlify.app/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+**✅ Next.js 15 & TypeScript Rewrite Complete (Spec B):** Migrated from legacy single-file Vanilla JS (`app.js`) to a modular Next.js App Router application with typed domain boundaries, unit-tested logic, Recharts analytics, and real URL tab routing (`/inbox`, `/dispatched`, `/history`, `/performance`).
 
-![Dashboard Screenshot](assets/dashboard.png)
+---
 
-## 🚀 Advanced Key Features
+## 🌟 Key Features
 
-* **🛡️ Role-Based Access Control (RBAC):** Strict row-level security ensures Field Techs can only view and interact with their own team's active dispatches, while Dispatchers/Admins have a birds-eye view of all global operations.
-* **🔄 Bi-Directional Google Sheets Sync:** Data doesn't just flow one way. The app seamlessly pulls incoming data piped from Google Sheets via Apps Script, and pushes status updates back to the sheet, ensuring legacy spreadsheets remain fully updated automatically.
-* **📈 Advanced Analytics Dashboard:** A dynamic performance tab that auto-calculates team efficiency, area-specific completion rates, and visualizes daily/weekly operational throughput.
-* **⚡ Real-Time Data Sync:** Powered by Supabase WebSockets, dispatchers and field techs see updates, assignments, and ticket closures instantly without ever refreshing the page.
-* **📥 Smart Triage Inbox:** Admins can review, edit, assign, and bulk-approve incoming tickets before they hit the active field dispatch board.
-* **📊 Spreadsheet-Style Bulk Dispatch:** Paste multi-column data directly from Excel/Google Sheets into the app to generate dozens of rich tickets in seconds.
-* **📍 Area & Barangay Granularity:** Integrated sub-area (Barangay) classification and filtering, allowing dispatchers to triage operations with district-level precision.
+- **⚡ Real-Time Operations**: Live Supabase subscriptions for instant ticket updates across field tech teams.
+- **🏷️ Mode Switcher (SLR vs SLI)**: Dynamic environment switching between SLR tickets and SLI job orders.
+- **📍 URL-Based Tab Navigation**:
+  - `/inbox`: Pending ticket queue for admin triage, team assignment, and approval.
+  - `/dispatched`: Active field operations queue with tech checklist items (`pic`, `pwr`, `speed`, `rpt`) and remarks.
+  - `/history`: Completed ticket archive with `[PROCESSED]` review status tagging.
+  - `/performance`: Interactive analytics dashboard powered by Recharts (efficiency rate, completion trend, trouble pie chart, per-team metrics).
+- **🛡️ Data Integrity Policy (Never-Delete Rule)**:
+  - `service_orders` rows are NEVER deleted.
+  - Team removals or bulk updates reassign tickets to `Unassigned` instead of issuing SQL `DELETE`s to preserve full historical stats for performance analytics.
+- **🔐 RBAC & Dev Impersonation**: Role-based access control (`developer`, `admin`, `tech`) with developer role/team impersonation toolbar.
 
-## 📸 App Gallery
+---
 
-Here is a look at the different modules within the Dispatch Manager:
+## 🏗️ Technical Stack
 
-| Light Theme Dashboard | Dark Theme Dashboard |
-| :---: | :---: |
-| ![Dashboard](assets/dashboard.png) | ![Dark Theme](assets/dashboard-dark-theme.png) |
+- **Framework**: Next.js 15 (App Router)
+- **Language**: TypeScript (Strict)
+- **Styling**: Tailwind CSS v4, Lucide Icons
+- **Database / Auth**: Supabase (PostgreSQL), `@supabase/ssr` (Google OAuth)
+- **State & Data Fetching**: TanStack React Query + Supabase Realtime Channels
+- **Analytics / Visualization**: Recharts
+- **Testing**: Vitest (Unit testing for domain logic)
 
-| Advanced Analytics | Team Management |
-| :---: | :---: |
-| ![Performance](assets/performance-tab.png) | ![Team Settings](assets/team-management.png) |
+---
 
-| Manual Bulk Dispatch | Rich Manual Dispatch |
-| :---: | :---: |
-| ![Bulk Dispatch](assets/manual-bulk-dispatch.png) | ![Manual Dispatch](assets/manual-dispatch.png) |
+## 🛠️ Setup & Installation
 
-*Secure Google OAuth Login:*
-![Login Screen](assets/login-screen.png)
+### 1. Environment Variables
+Create `.env.local` in the project root:
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://qqrzlltwvvpowdigffsq.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+```
 
-## 🛠️ Tech Stack
+### 2. Install Dependencies
+```bash
+npm install
+```
 
-* **Frontend:** HTML5, Vanilla JavaScript (ES6+), Tailwind CSS
-* **Backend (BaaS):** Supabase (PostgreSQL, Realtime WebSockets, Authentication)
-* **Integrations:** Google Apps Script (Bi-Directional Sync API)
-* **Testing:** Cypress (E2E)
-* **Hosting:** Netlify
-* **Icons:** FontAwesome 6
+### 3. Development Server
+```bash
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## ⚙️ Local Development Setup
+### 4. Running Tests & Production Build
+```bash
+npm test         # Run Vitest unit tests
+npm run build    # Compile production build
+```
 
-To run this project locally:
+---
 
-1. **Clone the repository:**
-   ```bash
-   git clone [https://github.com/your-username/your-repo-name.git](https://github.com/your-username/your-repo-name.git)
-2. **Install dependencies (for Cypress testing):**
-   ```bash
-   npm install
-3. **Set up Environment Variables:**
-   Create a `cypress.env.json` file in the root directory for secure testing:
-   ```json
-   {
-     "TEST_EMAIL": "your-test-email@example.com",
-     "TEST_PASSWORD": "your-test-password"
-   }
-4. **Open locally:** Use Live Server (VS Code extension) or any local HTTP server to open `index.html`
+## 📜 Standing Rules & Guidelines
 
-## 🛡️ Architecture & Security Note
-
-This application utilizes a decoupled Jamstack architecture. The UI is completely separated from the database. Security is not handled in the frontend client; instead, Row Level Security (RLS) is strictly enforced directly at the PostgreSQL database level. The database physically rejects queries for data that a specific authenticated user's role is not permitted to see.
+See [AGENTS.md](file:///Users/gian/Coding/Mountaintop-Dispatch-Manager/AGENTS.md) for full workspace rules, git commit/push policies, and data integrity guidelines.
