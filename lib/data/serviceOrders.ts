@@ -1,5 +1,5 @@
 import { createClient } from '../supabase/client';
-import { ServiceOrder } from '../supabase/types';
+import { ServiceOrder, SyncLog, ServiceOrderEvent } from '../supabase/types';
 
 export async function fetchServiceOrders(): Promise<ServiceOrder[]> {
   const supabase = createClient();
@@ -77,4 +77,36 @@ export async function reassignTeamOrders(
     console.error(`Error reassigning team orders from ${oldTeam} to ${newTeam}:`, error);
     throw error;
   }
+}
+
+export async function fetchSyncLogs(): Promise<SyncLog[]> {
+  const supabase = createClient();
+  const { data, error } = await (supabase as any)
+    .from('sync_log')
+    .select('*')
+    .order('ran_at', { ascending: false })
+    .limit(20);
+
+  if (error) {
+    console.error('Error fetching sync logs:', error);
+    return [];
+  }
+
+  return (data as SyncLog[]) || [];
+}
+
+export async function fetchOrderEvents(orderId: string): Promise<ServiceOrderEvent[]> {
+  const supabase = createClient();
+  const { data, error } = await (supabase as any)
+    .from('service_order_events')
+    .select('*')
+    .eq('order_id', orderId)
+    .order('at', { ascending: false });
+
+  if (error) {
+    console.error(`Error fetching order events for ${orderId}:`, error);
+    return [];
+  }
+
+  return (data as ServiceOrderEvent[]) || [];
 }

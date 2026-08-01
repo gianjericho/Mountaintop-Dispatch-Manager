@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { ServiceOrder, AppMode } from '../lib/supabase/types';
 import { UserContext } from '../lib/domain/rbac';
 import { ServiceOrderCard } from './ServiceOrderCard';
+import { getRepeatTroubleAccounts } from '../lib/domain/repeatTroubles';
+import { normalizeKey } from '../lib/domain/duplicates';
 import { ChevronLeft, ChevronRight, Inbox } from 'lucide-react';
 
 interface ServiceOrderListProps {
@@ -56,6 +58,9 @@ export function ServiceOrderList({
     );
   }
 
+  // Detect repeat trouble accounts in current order set
+  const repeatAccounts = getRepeatTroubleAccounts(orders, 30);
+
   const totalPages = Math.ceil(orders.length / ITEMS_PER_PAGE);
   const safePage = Math.min(Math.max(1, currentPage), totalPages);
 
@@ -80,6 +85,7 @@ export function ServiceOrderList({
             order={order}
             appMode={appMode}
             user={user}
+            isRepeatTrouble={repeatAccounts.has(normalizeKey(order.account_no))}
             onUpdate={onUpdateOrder}
             onEditClick={onEditClick}
             onApproveClick={onApproveClick}

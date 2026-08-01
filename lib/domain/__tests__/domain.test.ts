@@ -4,6 +4,7 @@ import { filterServiceOrders } from '../filters';
 import { checkDuplicateKey } from '../duplicates';
 import { canViewOrder, canEditOrder } from '../rbac';
 import { calculatePerformanceStats } from '../performance';
+import { getRepeatTroubleAccounts } from '../repeatTroubles';
 import { ServiceOrder } from '../../supabase/types';
 
 describe('Domain Logic Unit Tests', () => {
@@ -56,6 +57,18 @@ describe('Domain Logic Unit Tests', () => {
     it('allows different ticket or account numbers', () => {
       const isDupe = checkDuplicateKey('SLR', 'SF-1002', 'ACC-123', '2026-08-01', existing);
       expect(isDupe).toBe(false);
+    });
+  });
+
+  describe('repeatTroubles.ts', () => {
+    const orders: ServiceOrder[] = [
+      { id: '1', name: 'User 1', team: 'A', area: 'X', barangay: 'Y', status: 'done', type: 'SLR', ticket_no: 'T1', account_no: 'ACC-999', date_reported: '2026-08-01', is_processed: false },
+      { id: '2', name: 'User 1', team: 'A', area: 'X', barangay: 'Y', status: 'pending', type: 'SLR', ticket_no: 'T2', account_no: 'ACC-999', date_reported: '2026-08-10', is_processed: false }
+    ];
+
+    it('flags account with multiple tickets in 30 days as repeat trouble', () => {
+      const repeats = getRepeatTroubleAccounts(orders, 30);
+      expect(repeats.has('acc-999')).toBe(true);
     });
   });
 

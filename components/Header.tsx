@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { AppMode } from '../lib/supabase/types';
 import { UserContext } from '../lib/domain/rbac';
+import { SyncHealthIndicator } from './SyncHealthIndicator';
 import {
   Inbox,
   Send,
@@ -16,8 +17,7 @@ import {
   LogOut,
   Moon,
   Sun,
-  Shield,
-  Layers
+  ShieldAlert
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -60,7 +60,16 @@ export function Header({
       : []),
     { href: '/dispatched', label: 'Dispatched', icon: Send },
     { href: '/history', label: 'History', icon: History },
-    { href: '/performance', label: 'Performance', icon: TrendingUp }
+    { href: '/performance', label: 'Performance', icon: TrendingUp },
+    ...(user?.role === 'admin' || user?.role === 'developer'
+      ? [
+          {
+            href: '/data-issues',
+            label: 'Data Issues',
+            icon: ShieldAlert
+          }
+        ]
+      : [])
   ];
 
   return (
@@ -103,6 +112,9 @@ export function Header({
               SLI
             </button>
           </div>
+
+          {/* Sync Health Heartbeat Indicator */}
+          <SyncHealthIndicator />
         </div>
 
         {/* Tab Navigation */}

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { calculatePerformanceStats } from '../../../lib/domain/performance';
-import { getMonthRange } from '../../../lib/domain/dates';
+import { getMonthRange, formatDateInput } from '../../../lib/domain/dates';
 import { useAppContext } from '../app-context';
 import {
   TrendingUp,
@@ -11,7 +11,10 @@ import {
   PieChart as PieIcon,
   Calendar,
   Users,
-  Award
+  Award,
+  Download,
+  MapPin,
+  UserCheck
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -29,7 +32,9 @@ const COLORS = ['#06b6d4', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#3b82f6'
 
 export default function PerformancePage() {
   const { orders, appMode } = useAppContext();
-  const [period, setPeriod] = useState<'thisMonth' | 'lastMonth' | 'all'>('thisMonth');
+  const [period, setPeriod] = useState<'thisMonth' | 'lastMonth' | 'custom' | 'all'>('thisMonth');
+  const [customStart, setCustomStart] = useState<string>('');
+  const [customEnd, setCustomEnd] = useState<string>('');
 
   let startDate: Date | null = null;
   let endDate: Date | null = null;
@@ -42,11 +47,80 @@ export default function PerformancePage() {
     const range = getMonthRange(-1);
     startDate = range.start;
     endDate = range.end;
+  } else if (period === 'custom' && customStart && customEnd) {
+    startDate = new Date(customStart);
+    endDate = new Date(customEnd);
   }
 
   // Filter orders by mode
   const modeOrders = (orders || []).filter(o => o.type === appMode);
   const stats = calculatePerformanceStats(modeOrders, startDate, endDate);
+
+  // Per-Technician Leaderboard
+  const techMap: { [tech: string]: { dispatched: number; resolved: number } } = {};
+  modeOrders.forEach(o => {
+    const tech = o.assigned_tech ? o.assigned_tech.trim() : 'Unassigned Tech';
+    if (!techMap[tech]) techMap[tech] = { dispatched: 0, resolved: 0 };
+    techMap[tech].dispatched++;
+    if (o.status === 'done') techMap[tech].resolved++;
+  });
+
+  const techStats = Object.keys(techMap)
+    .map(tech => ({
+      tech,
+      dispatched: techMap[tech].dispatched,
+      resolved: techMap[tech].resolved,
+      efficiency: techMap[tech].dispatched > 0 ? Math.round((techMap[tech].resolved / techMap[tech].dispatched) * 100) : 0
+    }))
+    .sort((a, b) => b.resolved - a.resolved);
+
+  // Barangay Breakdown
+  const barangayMap: { [bgy: string]: { area: string; total: number; done: number } } = {};
+  modeOrders.forEach(o => {
+    const bgy = o.barangay ? o.barangay.trim().toUpperCase() : 'UNKNOWN';
+    if (!barangayMap[bgy]) barangayMap[bgy] = { area: o.area || 'UNKNOWN', total: 0, done: 0 };
+    barangayMap[bgy].total++;
+    if (o.status === 'done') barangayMap[bgy].done++;
+  });
+
+  const barangayStats = Object.keys(barangayMap)
+    .map(bgy => ({
+      barangay: bgy,
+      area: barangayMap[bgy].area,
+      total: barangayMap[bgy].total,
+      done: barangayMap[bgy].done,
+      rate: Math.round((barangayMap[bgy].done / barangayMap[bgy].total) * 100)
+    }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 10);
+
+  // CSV Report Export
+  const handleExportCSV = () => {
+    const headers = ['Type', 'Ticket No', 'Account No', 'Name', 'Area', 'Barangay', 'Status', 'Team', 'Assigned Tech', 'Date Reported', 'Date Added', 'Date Done'];
+    const rows = modeOrders.map(o => [
+      o.type,
+      o.ticket_no,
+      o.account_no,
+      `"${o.name.replace(/"/g, '""')}"`,
+      o.area,
+      o.barangay,
+      o.status,
+      o.team,
+      o.assigned_tech || '',
+      o.date_reported || '',
+      o.dateAdded || '',
+      o.dateDone || ''
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `dispatch_performance_report_${appMode}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="space-y-6">
@@ -58,39 +132,76 @@ export default function PerformancePage() {
             Performance & Analytics Dashboard ({appMode})
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Real-time technician efficiency, trouble type breakdown, and monthly completion trends.
+            Real-time technician efficiency, trouble type breakdown, per-tech leaderboard, and barangay geography.
           </p>
         </div>
 
-        {/* Period Selector */}
-        <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 p-1.5 rounded-xl text-xs">
-          <Calendar className="w-4 h-4 text-slate-400 ml-1" />
+        {/* Action Controls & Period Selector */}
+        <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => setPeriod('thisMonth')}
-            className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-              period === 'thisMonth' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
-            }`}
+            onClick={handleExportCSV}
+            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-medium transition-colors flex items-center gap-1.5 shadow"
           >
-            This Month
+            <Download className="w-4 h-4" /> Export Report CSV
           </button>
-          <button
-            onClick={() => setPeriod('lastMonth')}
-            className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-              period === 'lastMonth' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Last Month
-          </button>
-          <button
-            onClick={() => setPeriod('all')}
-            className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-              period === 'all' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            All Time
-          </button>
+
+          <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 p-1.5 rounded-xl text-xs">
+            <Calendar className="w-4 h-4 text-slate-400 ml-1" />
+            <button
+              onClick={() => setPeriod('thisMonth')}
+              className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                period === 'thisMonth' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              This Month
+            </button>
+            <button
+              onClick={() => setPeriod('lastMonth')}
+              className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                period === 'lastMonth' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Last Month
+            </button>
+            <button
+              onClick={() => setPeriod('custom')}
+              className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                period === 'custom' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Custom Range
+            </button>
+            <button
+              onClick={() => setPeriod('all')}
+              className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                period === 'all' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              All Time
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Custom Date Inputs if Custom selected */}
+      {period === 'custom' && (
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center gap-3 text-xs">
+          <span className="text-slate-300 font-medium">Custom Date Range:</span>
+          <input
+            type="date"
+            value={customStart}
+            onChange={e => setCustomStart(e.target.value)}
+            className="bg-slate-950 border border-slate-700 text-slate-100 rounded px-2.5 py-1 focus:outline-none focus:border-cyan-500"
+          />
+          <span className="text-slate-500">to</span>
+          <input
+            type="date"
+            value={customEnd}
+            onChange={e => setCustomEnd(e.target.value)}
+            className="bg-slate-950 border border-slate-700 text-slate-100 rounded px-2.5 py-1 focus:outline-none focus:border-cyan-500"
+          />
+        </div>
+      )}
 
       {/* Overview Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -196,35 +307,56 @@ export default function PerformancePage() {
         </div>
       </div>
 
-      {/* Per-Team Stat Cards */}
+      {/* Per-Technician Leaderboard */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg space-y-4">
         <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-          <Users className="w-4 h-4 text-cyan-400" />
-          Per-Team Performance Metrics
+          <UserCheck className="w-4 h-4 text-cyan-400" />
+          Per-Technician Resolution Leaderboard
         </h3>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {Object.keys(stats.teamStats).map(teamName => {
-            const team = stats.teamStats[teamName];
-            return (
-              <div key={teamName} className="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-200 text-sm">{teamName}</span>
-                  <span className="text-xs font-mono font-bold text-cyan-400">{team.efficiency}%</span>
-                </div>
-                <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                  <div
-                    className="bg-cyan-500 h-full rounded-full transition-all"
-                    style={{ width: `${team.efficiency}%` }}
-                  />
-                </div>
-                <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
-                  <span>Dispatched: {team.dispatched}</span>
-                  <span>Resolved: {team.resolved}</span>
-                </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 text-xs">
+          {techStats.map(item => (
+            <div key={item.tech} className="bg-slate-950 border border-slate-800 p-3 rounded-lg space-y-1">
+              <div className="flex items-center justify-between font-medium">
+                <span className="text-slate-200 truncate">{item.tech}</span>
+                <span className="font-mono text-cyan-400 font-bold">{item.resolved} resolved</span>
               </div>
-            );
-          })}
+              <p className="text-[11px] text-slate-500">Dispatched: {item.dispatched} | Efficiency: {item.efficiency}%</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Barangay Geography Breakdown */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg space-y-4 text-xs">
+        <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+          <MapPin className="w-4 h-4 text-emerald-400" />
+          Top 10 Barangay Geography Breakdown
+        </h3>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left font-mono">
+            <thead>
+              <tr className="border-b border-slate-800 text-slate-400 text-[11px]">
+                <th className="pb-2">BARANGAY</th>
+                <th className="pb-2">AREA</th>
+                <th className="pb-2">TOTAL TICKETS</th>
+                <th className="pb-2">RESOLVED</th>
+                <th className="pb-2">RATE</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60 text-slate-300">
+              {barangayStats.map(b => (
+                <tr key={b.barangay}>
+                  <td className="py-2 font-bold text-slate-200">{b.barangay}</td>
+                  <td className="py-2 text-slate-400">{b.area}</td>
+                  <td className="py-2 text-amber-400">{b.total}</td>
+                  <td className="py-2 text-emerald-400">{b.done}</td>
+                  <td className="py-2 text-cyan-400 font-bold">{b.rate}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
