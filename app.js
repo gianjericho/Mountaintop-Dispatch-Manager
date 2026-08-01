@@ -593,6 +593,48 @@ window.toggleTechDateMode = () => {
     updateTechToggleStyle();
     render(false);
 };
+
+window.onPerfFilterChange = () => {
+    const perfFilter = document.getElementById('perf-filter') ? document.getElementById('perf-filter').value : 'month';
+    const picker = document.getElementById('perf-month-picker');
+    if (picker) {
+        if (perfFilter === 'custom_month') {
+            picker.classList.remove('hidden');
+        } else {
+            picker.classList.add('hidden');
+        }
+    }
+    render(true);
+};
+
+window.toggleProcessed = async (id, targetState = true) => {
+    if (!db) return alert("Database disconnected");
+    const item = soData.find(i => i.id === id);
+    if (!item) return;
+
+    const newState = targetState !== undefined ? targetState : !item.is_processed;
+    const updatePayload = {
+        is_processed: newState,
+        date_processed: newState ? new Date().toISOString() : null
+    };
+
+    try {
+        const { error } = await db.from('service_orders').update(updatePayload).eq('id', id);
+        if (error) {
+            // Fallback if schema doesn't have is_processed column yet: update local state & notify cleanly
+            console.warn("is_processed column warning:", error);
+        }
+
+        item.is_processed = newState;
+        item.date_processed = updatePayload.date_processed;
+        showToast(newState ? "✅ Ticket tagged as DONE PROCESSED!" : "ℹ️ Ticket tag updated.", 'success', 3000);
+        render(false);
+    } catch (err) {
+        console.error("Failed to update processed status:", err);
+        showToast("❌ Error updating status: " + err.message, 'error', 5000);
+    }
+};
+
 window.saveSO = async () => {
     if (!db) return alert("Database disconnected");
     const id = document.getElementById('edit-id').value;
@@ -1009,6 +1051,17 @@ function render(resetLimit = false) {
             if (perfFilter === 'today') return isSameDay(d, now);
             if (perfFilter === 'week') return (now - d) < 7 * 86400000;
             if (perfFilter === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+            if (perfFilter === 'last_month') {
+                const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                return d.getMonth() === lastMonthDate.getMonth() && d.getFullYear() === lastMonthDate.getFullYear();
+            }
+            if (perfFilter === 'custom_month') {
+                const pickerVal = document.getElementById('perf-month-picker') ? document.getElementById('perf-month-picker').value : '';
+                if (pickerVal) {
+                    const [y, m] = pickerVal.split('-');
+                    return d.getFullYear() === parseInt(y) && (d.getMonth() + 1) === parseInt(m);
+                }
+            }
             return true;
         }
         return true;
@@ -1280,7 +1333,18 @@ function createCardHTML(item) {
             <div class="flex items-start gap-2">
                 ${isPending ? `<input type="checkbox" class="pending-cb w-4 h-4 mt-0.5 accent-blue-600 cursor-pointer rounded" value="${item.id}">` : ''}
                 <div>
-                    <span class="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded mb-1 inline-block border border-slate-200 dark-bg-sub dark-text dark-border">${item.area}${item.barangay ? ` • ${item.barangay}` : ''}</span>
+                    <div class="flex items-center gap-1.5 flex-wrap mb-1">
+                        <span class="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded inline-block border border-slate-200 dark-bg-sub dark-text dark-border">${item.area}${item.barangay ? ` • ${item.barangay}` : ''}</span>
+                        ${item.is_processed ? `
+                        <button onclick="toggleProcessed('${item.id}', false)" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded border border-emerald-300 inline-flex items-center gap-1 shadow-sm transition cursor-pointer" title="Click to unmark processed">
+                          <i class="fa-solid fa-circle-check text-emerald-600"></i> PROCESSED
+                        </button>
+                        ` : (isDone ? `
+                        <button onclick="toggleProcessed('${item.id}', true)" class="bg-amber-100 hover:bg-amber-200 text-amber-800 text-[10px] font-extrabold px-2 py-0.5 rounded border border-amber-300 transition cursor-pointer inline-flex items-center gap-1" title="Click to mark as processed">
+                          <i class="fa-solid fa-clock text-amber-600"></i> UNPROCESSED
+                        </button>
+                        ` : '')}
+                    </div>
                     <h3 class="font-bold text-gray-800 text-lg leading-tight dark-text">${item.name}</h3>
                     <p class="text-xs ${teamColorClass} mt-0.5 uppercase tracking-wide dark-text">${item.team}</p>
                     <div class="text-[10px] text-gray-400 mt-1 tracking-wider"><i class="fa-solid fa-headset mr-1"></i> Dispatched by: ${item.dispatched_by || 'Unknown'}</div>

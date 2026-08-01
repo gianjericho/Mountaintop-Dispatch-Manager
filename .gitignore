@@ -15,3 +15,8 @@ cypress.env
 
 # Prompting Guide
 .prompting_guide.md
+
+# Build & Local Env
+.next/
+next-env.d.ts
+.env.local
