@@ -596,14 +596,14 @@ window.toggleTechDateMode = () => {
 
 window.onPerfFilterChange = () => {
     const perfFilter = document.getElementById('perf-filter') ? document.getElementById('perf-filter').value : 'month';
-    const picker = document.getElementById('perf-month-picker');
-    if (picker) {
-        if (perfFilter === 'custom_month') {
-            picker.classList.remove('hidden');
-        } else {
-            picker.classList.add('hidden');
-        }
-    }
+    const singlePicker = document.getElementById('perf-month-picker');
+    const monthRangeContainer = document.getElementById('perf-month-range-container');
+    const dateRangeContainer = document.getElementById('perf-date-range-container');
+
+    if (singlePicker) singlePicker.classList.toggle('hidden', perfFilter !== 'custom_month');
+    if (monthRangeContainer) monthRangeContainer.classList.toggle('hidden', perfFilter !== 'month_range');
+    if (dateRangeContainer) dateRangeContainer.classList.toggle('hidden', perfFilter !== 'custom_date_range');
+
     render(true);
 };
 
@@ -1060,6 +1060,26 @@ function render(resetLimit = false) {
                 if (pickerVal) {
                     const [y, m] = pickerVal.split('-');
                     return d.getFullYear() === parseInt(y) && (d.getMonth() + 1) === parseInt(m);
+                }
+            }
+            if (perfFilter === 'month_range') {
+                const startVal = document.getElementById('perf-start-month') ? document.getElementById('perf-start-month').value : '';
+                const endVal = document.getElementById('perf-end-month') ? document.getElementById('perf-end-month').value : '';
+                if (startVal && endVal) {
+                    const [sy, sm] = startVal.split('-').map(Number);
+                    const [ey, em] = endVal.split('-').map(Number);
+                    const startDate = new Date(sy, sm - 1, 1, 0, 0, 0);
+                    const endDate = new Date(ey, em, 0, 23, 59, 59);
+                    return d >= startDate && d <= endDate;
+                }
+            }
+            if (perfFilter === 'custom_date_range') {
+                const startVal = document.getElementById('perf-start-date') ? document.getElementById('perf-start-date').value : '';
+                const endVal = document.getElementById('perf-end-date') ? document.getElementById('perf-end-date').value : '';
+                if (startVal && endVal) {
+                    const startDate = new Date(startVal + 'T00:00:00');
+                    const endDate = new Date(endVal + 'T23:59:59');
+                    return d >= startDate && d <= endDate;
                 }
             }
             return true;
@@ -1685,7 +1705,56 @@ window.addBulkRow = () => {
 }
 
 window.toggleModal = (id) => { const m = document.getElementById(id); m.classList.toggle('hidden'); m.classList.toggle('flex'); }
-window.openTeamAnalytics = (teamName) => { let teamData = soData.filter(i => i.team === teamName && (i.type || 'SLR') === currentAppMode); const done = teamData.filter(i => i.status === 'done').length; const total = teamData.length; const percent = total === 0 ? 0 : Math.round((done / total) * 100); document.getElementById('team-modal-name').innerText = teamName; document.getElementById('team-modal-percent').innerText = percent + "%"; document.getElementById('team-modal-total').innerText = total; document.getElementById('team-modal-done').innerText = done; document.getElementById('team-modal-areas').innerHTML = ""; document.getElementById('team-modal-history').innerHTML = ""; toggleModal('team-analytics-modal'); };
+window.openTeamAnalytics = (teamName) => {
+    let teamData = soData.filter(i => (i.team || '').trim().toLowerCase() === teamName.trim().toLowerCase() && (i.type || 'SLR') === currentAppMode);
+    const done = teamData.filter(i => i.status === 'done').length;
+    const total = teamData.length;
+    const percent = total === 0 ? 0 : Math.round((done / total) * 100);
+
+    document.getElementById('team-modal-name').innerText = teamName;
+    document.getElementById('team-modal-percent').innerText = percent + "%";
+    document.getElementById('team-modal-total').innerText = total;
+    document.getElementById('team-modal-done').innerText = done;
+
+    // Top Areas Breakdown
+    const areaCounts = {};
+    teamData.forEach(i => {
+        const a = i.area ? i.area.trim().toUpperCase() : 'UNKNOWN';
+        areaCounts[a] = (areaCounts[a] || 0) + 1;
+    });
+    const sortedAreas = Object.keys(areaCounts).sort((a, b) => areaCounts[b] - areaCounts[a]);
+    const areasHTML = sortedAreas.map(a => `
+        <div class="flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-200 text-xs dark-bg-sub dark-border mb-1">
+            <span class="font-bold text-slate-700 dark-text">${a}</span>
+            <span class="font-mono text-blue-600 font-bold text-[11px]">${areaCounts[a]} ticket${areaCounts[a] > 1 ? 's' : ''}</span>
+        </div>
+    `).join('');
+    document.getElementById('team-modal-areas').innerHTML = areasHTML || '<p class="text-xs text-slate-400 p-2">No location data</p>';
+
+    // History Log
+    const historyHTML = teamData.slice(0, 30).map(i => {
+        const isDone = i.status === 'done';
+        const isPending = i.status === 'pending';
+        const statusBadge = isDone 
+            ? `<span class="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-[9px] font-bold">DONE</span>`
+            : isPending ? `<span class="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[9px] font-bold">PENDING</span>`
+            : `<span class="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[9px] font-bold">ACTIVE</span>`;
+        return `
+            <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs dark-bg-sub dark-border mb-1.5">
+                <div class="flex justify-between items-start mb-1">
+                    <span class="font-bold text-slate-800 dark-text">${i.name}</span>
+                    ${statusBadge}
+                </div>
+                <div class="text-[10px] text-slate-500 font-mono">Ticket: ${i.ticket_no || 'N/A'} | Account: ${i.account_no || 'N/A'}</div>
+                <div class="text-[10px] text-slate-600 mt-1">Area: ${i.area}${i.barangay ? ' • ' + i.barangay : ''} | Trouble: ${i.trouble_report || 'None'}</div>
+                <div class="text-[9px] text-slate-400 mt-1 text-right font-mono">${i.dateDone || i.date_reported || i.dateAdded || ''}</div>
+            </div>
+        `;
+    }).join('');
+    document.getElementById('team-modal-history').innerHTML = historyHTML || '<p class="text-xs text-slate-400 p-2">No order log for this team</p>';
+
+    toggleModal('team-analytics-modal');
+};
 window.clearDateFilter = () => { document.getElementById('global-date-filter').value = ''; render(true); }
 window.changeRenderLimit = () => {
     renderLimit = parseInt(document.getElementById('entries-limit').value);

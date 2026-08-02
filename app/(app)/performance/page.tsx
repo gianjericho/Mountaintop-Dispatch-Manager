@@ -38,8 +38,10 @@ export default function PerformancePage() {
   const { orders, appMode } = useAppContext();
 
   // Period state
-  const [period, setPeriod] = useState<'all' | 'thisMonth' | 'lastMonth' | 'selectedMonth' | 'custom'>('all');
+  const [period, setPeriod] = useState<'all' | 'thisMonth' | 'lastMonth' | 'selectedMonth' | 'monthRange' | 'custom'>('all');
   const [selectedMonthYear, setSelectedMonthYear] = useState<string>('2026-08'); // YYYY-MM
+  const [startMonthYear, setStartMonthYear] = useState<string>('2026-01'); // YYYY-MM Point A
+  const [endMonthYear, setEndMonthYear] = useState<string>('2026-03');   // YYYY-MM Point B
   const [customStart, setCustomStart] = useState<string>('');
   const [customEnd, setCustomEnd] = useState<string>('');
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
@@ -62,6 +64,11 @@ export default function PerformancePage() {
     const month = parseInt(mStr, 10) - 1;
     startDate = new Date(year, month, 1, 0, 0, 0, 0);
     endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
+  } else if (period === 'monthRange' && startMonthYear && endMonthYear) {
+    const [sy, sm] = startMonthYear.split('-').map(Number);
+    const [ey, em] = endMonthYear.split('-').map(Number);
+    startDate = new Date(sy, sm - 1, 1, 0, 0, 0, 0);
+    endDate = new Date(ey, em, 0, 23, 59, 59, 999);
   } else if (period === 'custom' && customStart && customEnd) {
     startDate = new Date(customStart + 'T00:00:00');
     endDate = new Date(customEnd + 'T23:59:59');
@@ -234,7 +241,15 @@ export default function PerformancePage() {
                 period === 'selectedMonth' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              Select Month
+              Single Month
+            </button>
+            <button
+              onClick={() => setPeriod('monthRange')}
+              className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                period === 'monthRange' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Month Range (Point A - B)
             </button>
             <button
               onClick={() => setPeriod('custom')}
@@ -242,17 +257,17 @@ export default function PerformancePage() {
                 period === 'custom' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              Custom Range
+              Custom Dates (Point A - B)
             </button>
           </div>
         </div>
       </div>
 
-      {/* Select Month Picker */}
+      {/* Single Month Picker */}
       {period === 'selectedMonth' && (
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center gap-3 text-xs">
           <span className="text-slate-300 font-medium flex items-center gap-1.5">
-            <Filter className="w-4 h-4 text-cyan-400" /> Select Specific Month:
+            <Filter className="w-4 h-4 text-cyan-400" /> Select Single Month:
           </span>
           <input
             type="month"
@@ -263,19 +278,43 @@ export default function PerformancePage() {
         </div>
       )}
 
-      {/* Custom Date Inputs */}
+      {/* Month Range Picker (Point A to Point B) */}
+      {period === 'monthRange' && (
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center gap-3 text-xs">
+          <span className="text-slate-300 font-medium flex items-center gap-1.5">
+            <Calendar className="w-4 h-4 text-cyan-400" /> Select Month Range (e.g. January to March):
+          </span>
+          <span className="text-slate-400">From</span>
+          <input
+            type="month"
+            value={startMonthYear}
+            onChange={e => setStartMonthYear(e.target.value)}
+            className="bg-slate-950 border border-slate-700 text-slate-100 rounded px-2.5 py-1 focus:outline-none focus:border-cyan-500 font-mono"
+          />
+          <span className="text-slate-400">To</span>
+          <input
+            type="month"
+            value={endMonthYear}
+            onChange={e => setEndMonthYear(e.target.value)}
+            className="bg-slate-950 border border-slate-700 text-slate-100 rounded px-2.5 py-1 focus:outline-none focus:border-cyan-500 font-mono"
+          />
+        </div>
+      )}
+
+      {/* Custom Date Inputs (Point A to Point B) */}
       {period === 'custom' && (
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center gap-3 text-xs">
           <span className="text-slate-300 font-medium flex items-center gap-1.5">
-            <Calendar className="w-4 h-4 text-cyan-400" /> Select Custom Date Range:
+            <Calendar className="w-4 h-4 text-cyan-400" /> Select Custom Date Range (Point A to Point B):
           </span>
+          <span className="text-slate-400">Start Date</span>
           <input
             type="date"
             value={customStart}
             onChange={e => setCustomStart(e.target.value)}
             className="bg-slate-950 border border-slate-700 text-slate-100 rounded px-2.5 py-1 focus:outline-none focus:border-cyan-500 font-mono"
           />
-          <span className="text-slate-500">to</span>
+          <span className="text-slate-400">End Date</span>
           <input
             type="date"
             value={customEnd}
