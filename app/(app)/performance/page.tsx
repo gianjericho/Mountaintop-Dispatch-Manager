@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { calculatePerformanceStats } from '../../../lib/domain/performance';
-import { getMonthRange } from '../../../lib/domain/dates';
+import { getMonthRange, parseSafeDate } from '../../../lib/domain/dates';
 import { useAppContext } from '../app-context';
 import {
   TrendingUp,
@@ -35,7 +35,7 @@ const COLORS = ['#06b6d4', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#3b82f6'
 
 export default function PerformancePage() {
   const { orders, appMode } = useAppContext();
-  const [period, setPeriod] = useState<'thisMonth' | 'lastMonth' | 'custom' | 'all'>('thisMonth');
+  const [period, setPeriod] = useState<'thisMonth' | 'lastMonth' | 'custom' | 'all'>('all');
   const [customStart, setCustomStart] = useState<string>('');
   const [customEnd, setCustomEnd] = useState<string>('');
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
@@ -58,28 +58,50 @@ export default function PerformancePage() {
 
   // Filter orders by mode
   const modeOrders = (orders || []).filter(o => o.type === appMode);
-  const stats = calculatePerformanceStats(modeOrders, startDate, endDate);
+
+  // Filter orders by period date range
+  const periodOrders = modeOrders.filter(order => {
+    if (period === 'all') return true;
+    const orderDate = parseSafeDate(order.dateDone || order.dateAdded || order.date_reported);
+    if (!orderDate) return true;
+    if (startDate && orderDate < startDate) return false;
+    if (endDate && orderDate > endDate) return false;
+    return true;
+  });
+
+  const stats = calculatePerformanceStats(periodOrders, startDate, endDate);
 
   // Derive Team List
   const teamNames = Object.keys(stats.teamStats).sort();
 
-  // If a team is selected, derive team detail metrics
-  const activeTeamName = selectedTeam && stats.teamStats[selectedTeam] ? selectedTeam : (teamNames[0] || null);
+  // Active Selected Team
+  const activeTeamName = (selectedTeam && teamNames.includes(selectedTeam))
+    ? selectedTeam
+    : (teamNames[0] || null);
 
-  const activeTeamOrders = modeOrders.filter(o => activeTeamName && o.team === activeTeamName);
+  // Filter period orders belonging to activeTeamName (case-insensitive & trimmed)
+  const activeTeamOrders = periodOrders.filter(o => {
+    if (!activeTeamName) return false;
+    const t = (o.team || 'Unassigned').trim().toLowerCase();
+    return t === activeTeamName.trim().toLowerCase();
+  });
+
   const activeTeamDoneOrders = activeTeamOrders.filter(o => o.status === 'done');
 
   // Top Area for Selected Team
   const teamAreaMap: { [area: string]: number } = {};
   activeTeamOrders.forEach(o => {
-    const a = o.area || 'Unknown';
+    const a = o.area ? o.area.trim().toUpperCase() : 'UNKNOWN';
     teamAreaMap[a] = (teamAreaMap[a] || 0) + 1;
   });
-  const topTeamArea = Object.keys(teamAreaMap).sort((a, b) => teamAreaMap[b] - teamAreaMap[a])[0] || 'N/A';
+  const sortedTeamAreas = Object.keys(teamAreaMap).sort((a, b) => teamAreaMap[b] - teamAreaMap[a]);
+  const topTeamArea = sortedTeamAreas.length > 0
+    ? `${sortedTeamAreas[0]} (${teamAreaMap[sortedTeamAreas[0]]} ticket${teamAreaMap[sortedTeamAreas[0]] > 1 ? 's' : ''})`
+    : 'None';
 
   // Per-Technician Leaderboard
   const techMap: { [tech: string]: { dispatched: number; resolved: number } } = {};
-  modeOrders.forEach(o => {
+  periodOrders.forEach(o => {
     const tech = o.assigned_tech ? o.assigned_tech.trim() : 'Unassigned Tech';
     if (!techMap[tech]) techMap[tech] = { dispatched: 0, resolved: 0 };
     techMap[tech].dispatched++;
@@ -97,7 +119,7 @@ export default function PerformancePage() {
 
   // Barangay Breakdown
   const barangayMap: { [bgy: string]: { area: string; total: number; done: number } } = {};
-  modeOrders.forEach(o => {
+  periodOrders.forEach(o => {
     const bgy = o.barangay ? o.barangay.trim().toUpperCase() : 'UNKNOWN';
     if (!barangayMap[bgy]) barangayMap[bgy] = { area: o.area || 'UNKNOWN', total: 0, done: 0 };
     barangayMap[bgy].total++;
@@ -118,7 +140,7 @@ export default function PerformancePage() {
   // CSV Report Export
   const handleExportCSV = () => {
     const headers = ['Type', 'Ticket No', 'Account No', 'Name', 'Area', 'Barangay', 'Status', 'Team', 'Assigned Tech', 'Date Reported', 'Date Added', 'Date Done'];
-    const rows = modeOrders.map(o => [
+    const rows = periodOrders.map(o => [
       o.type,
       o.ticket_no,
       o.account_no,
@@ -145,7 +167,7 @@ export default function PerformancePage() {
 
   return (
     <div className="space-y-6">
-      {/* Header & Month Selector */}
+      {/* Header & Period Selector */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
@@ -169,6 +191,14 @@ export default function PerformancePage() {
           <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 p-1.5 rounded-xl text-xs">
             <Calendar className="w-4 h-4 text-slate-400 ml-1" />
             <button
+              onClick={() => setPeriod('all')}
+              className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                period === 'all' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              All Time
+            </button>
+            <button
               onClick={() => setPeriod('thisMonth')}
               className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
                 period === 'thisMonth' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
@@ -191,14 +221,6 @@ export default function PerformancePage() {
               }`}
             >
               Custom Range
-            </button>
-            <button
-              onClick={() => setPeriod('all')}
-              className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-                period === 'all' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              All Time
             </button>
           </div>
         </div>
@@ -264,7 +286,7 @@ export default function PerformancePage() {
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg space-y-4">
         <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
           <Users className="w-4 h-4 text-cyan-400" />
-          Per-Team Performance Metrics (Click card to inspect top area & history)
+          Per-Team Performance Metrics (Click any team card to inspect top area & history)
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -277,7 +299,7 @@ export default function PerformancePage() {
                 onClick={() => setSelectedTeam(teamName)}
                 className={`text-left bg-slate-950 border rounded-xl p-4 space-y-2 transition-all cursor-pointer ${
                   isSelected
-                    ? 'border-cyan-500 ring-2 ring-cyan-500/40 shadow-lg'
+                    ? 'border-cyan-500 ring-2 ring-cyan-500/40 shadow-lg bg-slate-900'
                     : 'border-slate-800 hover:border-slate-700'
                 }`}
               >
@@ -322,18 +344,20 @@ export default function PerformancePage() {
             <div className="space-y-2">
               <h5 className="font-semibold text-slate-300 flex items-center gap-1.5">
                 <History className="w-3.5 h-3.5 text-emerald-400" />
-                Recent Completion History ({activeTeamDoneOrders.length} resolved tickets):
+                Team Completion History ({activeTeamDoneOrders.length} resolved ticket{activeTeamDoneOrders.length !== 1 ? 's' : ''}):
               </h5>
 
               {activeTeamDoneOrders.length === 0 ? (
-                <p className="text-slate-500 py-3 text-center">No completed tickets for {activeTeamName} in selected period.</p>
+                <div className="text-slate-500 py-4 text-center bg-slate-900/40 rounded-lg border border-slate-800/60">
+                  No completed tickets found for {activeTeamName} in the selected period filter ({period}).
+                </div>
               ) : (
-                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                  {activeTeamDoneOrders.slice(0, 15).map(order => (
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {activeTeamDoneOrders.slice(0, 25).map(order => (
                     <div key={order.id} className="bg-slate-900 p-2.5 rounded border border-slate-800 flex items-center justify-between font-mono">
                       <div>
                         <span className="font-bold text-slate-200">{order.name}</span>
-                        <span className="text-slate-400 text-[11px] ml-2">Ticket: {order.ticket_no} | Account: {order.account_no}</span>
+                        <span className="text-slate-400 text-[11px] ml-2">Ticket: {order.ticket_no || 'N/A'} | Account: {order.account_no}</span>
                         <p className="text-[10px] text-slate-500 font-sans mt-0.5">Area: {order.area} — {order.barangay} | Trouble: {order.trouble_report}</p>
                       </div>
                       <div className="text-right shrink-0">
