@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { calculatePerformanceStats } from '../../../lib/domain/performance';
-import { getMonthRange, parseSafeDate } from '../../../lib/domain/dates';
+import { getMonthRange, parseSafeDate, formatDateInput } from '../../../lib/domain/dates';
 import { useAppContext } from '../app-context';
 import {
   TrendingUp,
@@ -17,7 +17,8 @@ import {
   UserCheck,
   ChevronRight,
   History,
-  Tag
+  Tag,
+  Filter
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -35,11 +36,15 @@ const COLORS = ['#06b6d4', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#3b82f6'
 
 export default function PerformancePage() {
   const { orders, appMode } = useAppContext();
-  const [period, setPeriod] = useState<'thisMonth' | 'lastMonth' | 'custom' | 'all'>('all');
+
+  // Period state
+  const [period, setPeriod] = useState<'all' | 'thisMonth' | 'lastMonth' | 'selectedMonth' | 'custom'>('all');
+  const [selectedMonthYear, setSelectedMonthYear] = useState<string>('2026-08'); // YYYY-MM
   const [customStart, setCustomStart] = useState<string>('');
   const [customEnd, setCustomEnd] = useState<string>('');
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
 
+  // Compute date range
   let startDate: Date | null = null;
   let endDate: Date | null = null;
 
@@ -51,15 +56,21 @@ export default function PerformancePage() {
     const range = getMonthRange(-1);
     startDate = range.start;
     endDate = range.end;
+  } else if (period === 'selectedMonth' && selectedMonthYear) {
+    const [yStr, mStr] = selectedMonthYear.split('-');
+    const year = parseInt(yStr, 10);
+    const month = parseInt(mStr, 10) - 1;
+    startDate = new Date(year, month, 1, 0, 0, 0, 0);
+    endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
   } else if (period === 'custom' && customStart && customEnd) {
-    startDate = new Date(customStart);
-    endDate = new Date(customEnd);
+    startDate = new Date(customStart + 'T00:00:00');
+    endDate = new Date(customEnd + 'T23:59:59');
   }
 
-  // Filter orders by mode
+  // Filter orders by appMode (SLR vs SLI)
   const modeOrders = (orders || []).filter(o => o.type === appMode);
 
-  // Filter orders by period date range
+  // Filter orders by selected date period
   const periodOrders = modeOrders.filter(order => {
     if (period === 'all') return true;
     const orderDate = parseSafeDate(order.dateDone || order.dateAdded || order.date_reported);
@@ -71,15 +82,17 @@ export default function PerformancePage() {
 
   const stats = calculatePerformanceStats(periodOrders, startDate, endDate);
 
-  // Derive Team List
-  const teamNames = Object.keys(stats.teamStats).sort();
+  // Sort Teams by Volume (Dispatched count descending) instead of alphabetical
+  const teamNames = Object.keys(stats.teamStats).sort((a, b) => {
+    return stats.teamStats[b].dispatched - stats.teamStats[a].dispatched;
+  });
 
   // Active Selected Team
   const activeTeamName = (selectedTeam && teamNames.includes(selectedTeam))
     ? selectedTeam
     : (teamNames[0] || null);
 
-  // Filter period orders belonging to activeTeamName (case-insensitive & trimmed)
+  // Filter period orders for activeTeamName (case-insensitive & trimmed)
   const activeTeamOrders = periodOrders.filter(o => {
     if (!activeTeamName) return false;
     const t = (o.team || 'Unassigned').trim().toLowerCase();
@@ -87,8 +100,9 @@ export default function PerformancePage() {
   });
 
   const activeTeamDoneOrders = activeTeamOrders.filter(o => o.status === 'done');
+  const activeTeamActiveOrders = activeTeamOrders.filter(o => o.status === 'active');
 
-  // Top Area for Selected Team
+  // Top Area Served for Selected Team (computed from all team dispatches)
   const teamAreaMap: { [area: string]: number } = {};
   activeTeamOrders.forEach(o => {
     const a = o.area ? o.area.trim().toUpperCase() : 'UNKNOWN';
@@ -97,7 +111,7 @@ export default function PerformancePage() {
   const sortedTeamAreas = Object.keys(teamAreaMap).sort((a, b) => teamAreaMap[b] - teamAreaMap[a]);
   const topTeamArea = sortedTeamAreas.length > 0
     ? `${sortedTeamAreas[0]} (${teamAreaMap[sortedTeamAreas[0]]} ticket${teamAreaMap[sortedTeamAreas[0]] > 1 ? 's' : ''})`
-    : 'None';
+    : 'No location data';
 
   // Per-Technician Leaderboard
   const techMap: { [tech: string]: { dispatched: number; resolved: number } } = {};
@@ -215,6 +229,14 @@ export default function PerformancePage() {
               Last Month
             </button>
             <button
+              onClick={() => setPeriod('selectedMonth')}
+              className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                period === 'selectedMonth' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Select Month
+            </button>
+            <button
               onClick={() => setPeriod('custom')}
               className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
                 period === 'custom' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
@@ -226,22 +248,39 @@ export default function PerformancePage() {
         </div>
       </div>
 
-      {/* Custom Date Inputs if Custom selected */}
+      {/* Select Month Picker */}
+      {period === 'selectedMonth' && (
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center gap-3 text-xs">
+          <span className="text-slate-300 font-medium flex items-center gap-1.5">
+            <Filter className="w-4 h-4 text-cyan-400" /> Select Specific Month:
+          </span>
+          <input
+            type="month"
+            value={selectedMonthYear}
+            onChange={e => setSelectedMonthYear(e.target.value)}
+            className="bg-slate-950 border border-slate-700 text-slate-100 rounded px-2.5 py-1 focus:outline-none focus:border-cyan-500 font-mono"
+          />
+        </div>
+      )}
+
+      {/* Custom Date Inputs */}
       {period === 'custom' && (
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center gap-3 text-xs">
-          <span className="text-slate-300 font-medium">Custom Date Range:</span>
+          <span className="text-slate-300 font-medium flex items-center gap-1.5">
+            <Calendar className="w-4 h-4 text-cyan-400" /> Select Custom Date Range:
+          </span>
           <input
             type="date"
             value={customStart}
             onChange={e => setCustomStart(e.target.value)}
-            className="bg-slate-950 border border-slate-700 text-slate-100 rounded px-2.5 py-1 focus:outline-none focus:border-cyan-500"
+            className="bg-slate-950 border border-slate-700 text-slate-100 rounded px-2.5 py-1 focus:outline-none focus:border-cyan-500 font-mono"
           />
           <span className="text-slate-500">to</span>
           <input
             type="date"
             value={customEnd}
             onChange={e => setCustomEnd(e.target.value)}
-            className="bg-slate-950 border border-slate-700 text-slate-100 rounded px-2.5 py-1 focus:outline-none focus:border-cyan-500"
+            className="bg-slate-950 border border-slate-700 text-slate-100 rounded px-2.5 py-1 focus:outline-none focus:border-cyan-500 font-mono"
           />
         </div>
       )}
@@ -286,7 +325,7 @@ export default function PerformancePage() {
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg space-y-4">
         <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
           <Users className="w-4 h-4 text-cyan-400" />
-          Per-Team Performance Metrics (Click any team card to inspect top area & history)
+          Per-Team Performance Metrics (Sorted by volume — Click card to inspect top area & history)
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -325,49 +364,80 @@ export default function PerformancePage() {
           })}
         </div>
 
-        {/* Selected Team Detail View (Top Area & History) */}
+        {/* Selected Team Detail View (Top Area & Work History) */}
         {activeTeamName && (
-          <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 mt-4 space-y-4 text-xs">
+          <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 mt-4 space-y-4 text-xs shadow-inner">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
               <div>
-                <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                  <Tag className="w-4 h-4 text-cyan-400" />
+                <h4 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                  <Tag className="w-4.5 h-4.5 text-cyan-400" />
                   Team Details — {activeTeamName}
                 </h4>
-                <p className="text-slate-400 text-[11px] mt-0.5">
-                  Top Area Served: <strong className="text-cyan-300 font-mono">{topTeamArea}</strong> | Total Dispatched: <strong className="text-amber-300 font-mono">{activeTeamOrders.length}</strong> | Total Completed: <strong className="text-emerald-300 font-mono">{activeTeamDoneOrders.length}</strong>
-                </p>
+                <div className="flex flex-wrap items-center gap-4 text-slate-300 text-xs mt-2 font-mono">
+                  <span className="bg-slate-900 border border-slate-800 px-2.5 py-1 rounded">
+                    Top Area Served: <strong className="text-cyan-400 font-bold">{topTeamArea}</strong>
+                  </span>
+                  <span className="bg-slate-900 border border-slate-800 px-2.5 py-1 rounded">
+                    Total Dispatched: <strong className="text-amber-400 font-bold">{activeTeamOrders.length}</strong>
+                  </span>
+                  <span className="bg-slate-900 border border-slate-800 px-2.5 py-1 rounded">
+                    Active Operations: <strong className="text-cyan-400 font-bold">{activeTeamActiveOrders.length}</strong>
+                  </span>
+                  <span className="bg-slate-900 border border-slate-800 px-2.5 py-1 rounded">
+                    Resolved Tickets: <strong className="text-emerald-400 font-bold">{activeTeamDoneOrders.length}</strong>
+                  </span>
+                </div>
               </div>
             </div>
 
-            {/* Team Recent Completion History */}
+            {/* Team Order History List */}
             <div className="space-y-2">
-              <h5 className="font-semibold text-slate-300 flex items-center gap-1.5">
-                <History className="w-3.5 h-3.5 text-emerald-400" />
-                Team Completion History ({activeTeamDoneOrders.length} resolved ticket{activeTeamDoneOrders.length !== 1 ? 's' : ''}):
+              <h5 className="font-semibold text-slate-200 flex items-center gap-1.5 text-xs">
+                <History className="w-4 h-4 text-cyan-400" />
+                Team Order Log ({activeTeamOrders.length} total orders for {activeTeamName}):
               </h5>
 
-              {activeTeamDoneOrders.length === 0 ? (
-                <div className="text-slate-500 py-4 text-center bg-slate-900/40 rounded-lg border border-slate-800/60">
-                  No completed tickets found for {activeTeamName} in the selected period filter ({period}).
+              {activeTeamOrders.length === 0 ? (
+                <div className="text-slate-500 py-6 text-center bg-slate-900/40 rounded-lg border border-slate-800/60">
+                  No orders found for {activeTeamName} in the selected period.
                 </div>
               ) : (
-                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                  {activeTeamDoneOrders.slice(0, 25).map(order => (
-                    <div key={order.id} className="bg-slate-900 p-2.5 rounded border border-slate-800 flex items-center justify-between font-mono">
-                      <div>
-                        <span className="font-bold text-slate-200">{order.name}</span>
-                        <span className="text-slate-400 text-[11px] ml-2">Ticket: {order.ticket_no || 'N/A'} | Account: {order.account_no}</span>
-                        <p className="text-[10px] text-slate-500 font-sans mt-0.5">Area: {order.area} — {order.barangay} | Trouble: {order.trouble_report}</p>
+                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                  {activeTeamOrders.slice(0, 30).map(order => {
+                    const isOrderDone = order.status === 'done';
+                    const isOrderActive = order.status === 'active';
+                    return (
+                      <div key={order.id} className="bg-slate-900 p-3 rounded-lg border border-slate-800 flex items-center justify-between gap-4 font-mono">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-200">{order.name}</span>
+                            <span className="text-slate-400 text-[11px]">Ticket: {order.ticket_no || 'N/A'}</span>
+                            <span className="text-slate-400 text-[11px]">Account: {order.account_no}</span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 font-sans mt-1">
+                            Area: <strong className="text-slate-300">{order.area}</strong> {order.barangay ? `— ${order.barangay}` : ''} | Trouble: {order.trouble_report || 'None'}
+                          </p>
+                        </div>
+
+                        <div className="text-right shrink-0 font-sans">
+                          {isOrderDone ? (
+                            <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-bold font-mono">
+                              DONE
+                            </span>
+                          ) : isOrderActive ? (
+                            <span className="px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 text-[10px] font-bold font-mono">
+                              ACTIVE
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 text-[10px] font-bold font-mono">
+                              PENDING
+                            </span>
+                          )}
+                          <p className="text-[10px] text-slate-500 mt-1 font-mono">{order.dateDone || order.date_reported || order.dateAdded || 'Recorded'}</p>
+                        </div>
                       </div>
-                      <div className="text-right shrink-0">
-                        <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-bold">
-                          DONE
-                        </span>
-                        <p className="text-[10px] text-slate-500 mt-0.5">{order.dateDone || order.date_reported || 'Resolved'}</p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
